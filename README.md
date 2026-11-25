@@ -36,17 +36,15 @@
 
 ### アプリを入れる
 
-JDK 17とAndroid SDKを用意し、プロジェクト直下でAPKを作ります。Android Studioでこのフォルダーを開き、`app`を実行してもかまいません。
+Android Studio（JDK 17、Android SDK 36）でこのリポジトリを開き、`app`を実行します。
+
+コマンドで入れる場合は、スマホの開発者向けオプションで「USBデバッグ」をONにしてPCにつなぎ、リポジトリ直下で次を実行します（macOS・Linuxでは`./gradlew installRelease`）。環境変数`ANDROID_HOME`には、Android SDKの場所を設定しておきます。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build.ps1
+.\gradlew.bat installRelease
 ```
 
-スマホの開発者向けオプションで「USBデバッグ」をONにし、USBケーブルでPCにつないでから入れます。
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install-galaxy.ps1
-```
+初回のビルドでは、ライブラリの取得にネット接続が必要です。署名用の鍵は、初回のビルドで自動的に作られます。
 
 ### トレーニングする
 
@@ -62,9 +60,3 @@ powershell -ExecutionPolicy Bypass -File .\install-galaxy.ps1
 - **記録**：日付ごとの実績を見て、回数の入力・修正や、間違えた記録の削除ができます。
 - **設定**：トレーニングする曜日、週間目標、リマインド通知、合図（効果音・振動・音声）、バックアップの書き出し・取り込みを設定します。
 - **自由タイマー**：ホームの「インターバルを設定」から、運動・休憩・ラウンド数を決めて自動で進めます（初期値は20秒＋10秒×8回）。
-
-### PCで試す
-
-スマホがなくても、`run-pc-debug.cmd`をダブルクリックすると、PC上で画面とタイマーを試せます（詳しくは[PC-DEBUG.md](PC-DEBUG.md)）。
-
-開発環境、ビルドの詳細、署名鍵の扱い、デザイン、検証の記録は[DEVELOPMENT.md](DEVELOPMENT.md)と[VERIFICATION.md](VERIFICATION.md)にまとめています。

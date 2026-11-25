@@ -9,3 +9,8 @@ local.properties
 *.hprof
 captures/
 artifacts/
+
+# 自分用の開発メモ（GitHubには載せない）
+DEVELOPMENT.md
+VERIFICATION.md
+PC-DEBUG.md
