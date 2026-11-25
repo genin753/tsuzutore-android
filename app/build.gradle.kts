@@ -15,12 +15,21 @@ android {
         applicationId = "jp.tsuzutore.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        // Raise on every release so an older APK can no longer be installed over newer data by accident.
+        versionCode = 2
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
     signingConfigs.getByName("debug").storeFile = file("../.tooling/debug.keystore")
+    buildTypes {
+        // Everyday build: not debuggable, so Compose runs at full speed. It is signed with the same
+        // local key as debug, so it updates the installed app in place and keeps its data.
+        release {
+            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -44,10 +53,12 @@ val prepareLocalDebugKey = tasks.register("prepareLocalDebugKey") {
                 "-keysize", "2048", "-validity", "10000", "-dname", "CN=Android Debug,O=Android,C=US", "-storetype", "JKS")
                 .inheritIO().start().waitFor()
             check(result == 0) { "ローカルのdebug署名鍵を生成できませんでした。" }
+            logger.warn("新しい署名鍵を作成しました: ${debugKeyFile.absolutePath}\n" +
+                "以前の鍵で入れたアプリには上書きできません。この鍵は別の場所にもバックアップしてください。")
         }
     }
 }
-tasks.matching { it.name == "validateSigningDebug" }.configureEach { dependsOn(prepareLocalDebugKey) }
+tasks.matching { it.name == "validateSigningDebug" || it.name == "validateSigningRelease" }.configureEach { dependsOn(prepareLocalDebugKey) }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.11.01"))
     implementation("androidx.core:core-ktx:1.17.0")

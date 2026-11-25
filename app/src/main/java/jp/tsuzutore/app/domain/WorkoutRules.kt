@@ -17,27 +17,45 @@ fun initialTemplate(): MenuTemplate = MenuTemplate(
     ),
 )
 
+/** Input limits shared by the screens and by stored-data validation, so both always agree. */
+object Limits {
+    const val NAME = 120
+    const val TEMPLATE_EXERCISES = 50
+    const val SETS = 20
+    const val TARGET = 999
+    const val TARGET_SECONDS = 7200
+    const val REST_SECONDS = 3600
+    const val TEXT = 120
+    const val CUE_MEMO = 500
+    const val WARMUP_SECONDS = 1800
+
+    /** A forgotten rep set stops counting here, so its record stays valid and exportable. */
+    const val MAX_SET_ELAPSED_MS = 86_400_000L
+}
+
 fun validateExercise(exercise: Exercise): List<String> = buildList {
     if (exercise.id.isBlank() || exercise.id.length > 200) add("種目IDが不正です")
-    if (exercise.name.isBlank() || exercise.name.length > 120) add("種目名は1〜120文字で入力してください")
-    if (exercise.sets !in 1..20) add("セット数は1〜20で入力してください")
-    if (exercise.targetMin !in 1..999 || exercise.targetMax !in 1..999 || exercise.targetMin > exercise.targetMax) add("目標範囲は1〜999で、下限を上限以下にしてください")
-    if (exercise.targetSeconds !in 1..7200) add("運動時間は1〜7200秒で入力してください")
-    if (exercise.restSeconds !in 0..3600) add("休憩は0〜3600秒で入力してください")
-    if (exercise.load.length > 120 || exercise.difficulty.length > 120) add("負荷・難度は120文字以内で入力してください")
+    if (exercise.name.isBlank() || exercise.name.length > Limits.NAME) add("種目名は1〜${Limits.NAME}文字で入力してください")
+    if (exercise.sets !in 1..Limits.SETS) add("セット数は1〜${Limits.SETS}で入力してください")
+    if (exercise.targetMin !in 1..Limits.TARGET || exercise.targetMax !in 1..Limits.TARGET || exercise.targetMin > exercise.targetMax) {
+        add("目標範囲は1〜${Limits.TARGET}で、下限を上限以下にしてください")
+    }
+    if (exercise.targetSeconds !in 1..Limits.TARGET_SECONDS) add("運動時間は1〜${Limits.TARGET_SECONDS}秒で入力してください")
+    if (exercise.restSeconds !in 0..Limits.REST_SECONDS) add("休憩は0〜${Limits.REST_SECONDS}秒で入力してください")
+    if (exercise.load.length > Limits.TEXT || exercise.difficulty.length > Limits.TEXT) add("負荷・難度は${Limits.TEXT}文字以内で入力してください")
 }
 
 fun validateTemplate(template: MenuTemplate): List<String> = buildList {
     if (template.id.isBlank() || template.id.length > 200) add("メニューIDが不正です")
-    if (template.name.isBlank() || template.name.length > 120) add("メニュー名は1〜120文字で入力してください")
-    if (template.exercises.isEmpty() || template.exercises.size > 50) add("種目数は1〜50にしてください")
+    if (template.name.isBlank() || template.name.length > Limits.NAME) add("メニュー名は1〜${Limits.NAME}文字で入力してください")
+    if (template.exercises.isEmpty() || template.exercises.size > Limits.TEMPLATE_EXERCISES) add("種目数は1〜${Limits.TEMPLATE_EXERCISES}にしてください")
     if (template.exercises.map { it.id }.distinct().size != template.exercises.size) add("同じ種目IDが重複しています")
     template.exercises.forEach { addAll(validateExercise(it)) }
 }
 
 fun validatePlan(plan: WorkoutPlan): List<String> = buildList {
     addAll(validateTemplate(MenuTemplate(plan.templateId, plan.title, plan.exercises)))
-    if (plan.warmupSeconds !in 0..1800) add("準備運動は0〜1800秒で入力してください")
+    if (plan.warmupSeconds !in 0..Limits.WARMUP_SECONDS) add("準備運動は0〜${Limits.WARMUP_SECONDS}秒で入力してください")
     if (plan.kind == PlanKind.INTERVAL && (plan.exercises.size != 1 || plan.exercises.any { it.mode != ExerciseMode.TIME || it.bilateral })) add("インターバルは左右なしの時間制1種目にしてください")
 }
 
@@ -46,8 +64,8 @@ fun validateSettings(settings: AppSettings): List<String> = buildList {
     if (settings.plannedDays.any { it !in 1..7 }) add("予定曜日が不正です")
     if (settings.weeklyGoal !in 1..7) add("週間目標は1〜7日で入力してください")
     if (settings.reminderHour !in 0..23 || settings.reminderMinute !in 0..59) add("通知時刻が不正です")
-    if (settings.cueMemo.length > 500) add("きっかけのメモは500文字以内で入力してください")
-    if (settings.warmupSeconds !in 0..1800) add("準備運動は0〜1800秒で入力してください")
+    if (settings.cueMemo.length > Limits.CUE_MEMO) add("きっかけのメモは${Limits.CUE_MEMO}文字以内で入力してください")
+    if (settings.warmupSeconds !in 0..Limits.WARMUP_SECONDS) add("準備運動は0〜${Limits.WARMUP_SECONDS}秒で入力してください")
     if (settings.firstWorkoutDate != null && runCatching { LocalDate.parse(settings.firstWorkoutDate) }.isFailure) add("初回ワークアウト日が不正です")
 }
 
@@ -70,7 +88,7 @@ fun validateSession(session: WorkoutSession): List<String> = buildList {
         if (result.mode == ExerciseMode.REPS && result.outcome == SetOutcome.COMPLETE && result.actualReps != null && result.actualReps <= 0) add("完了セットの実施回数は1以上にしてください")
         if (result.timeAdjustmentMs !in -86_400_000L..86_400_000L || (result.mode != ExerciseMode.TIME && result.timeAdjustmentMs != 0L) || (result.outcome == SetOutcome.SKIPPED && result.timeAdjustmentMs != 0L)) add("時間調整の記録が不正です")
         if (exercise != null && result.mode == ExerciseMode.TIME && result.outcome != SetOutcome.SKIPPED && exercise.targetSeconds * 1000L + result.timeAdjustmentMs !in 1000L..86_400_000L) add("調整後の目標時間が不正です")
-        if (result.elapsedMs < 0 || result.elapsedMs > 86_400_000L) add("経過時間が不正です")
+        if (result.elapsedMs < 0 || result.elapsedMs > Limits.MAX_SET_ELAPSED_MS) add("経過時間が不正です")
         if (result.load.length > 120 || result.difficulty.length > 120 || result.exerciseName.length > 120) add("セット記録の文字数が上限を超えています")
         if (result.outcome == SetOutcome.SKIPPED && (result.actualReps != null || result.elapsedMs != 0L)) add("スキップには実績を保存できません")
     }
@@ -115,6 +133,31 @@ fun SetResult.wasPerformed(): Boolean = outcome != SetOutcome.SKIPPED && when (m
 }
 
 fun WorkoutSession.wasPerformed(): Boolean = results.any { it.wasPerformed() }
+
+/**
+ * Starting value for optional rep entry: this workout's last count for the exercise,
+ * then the latest recorded count in history, then the lower target. Never recorded by itself.
+ */
+fun suggestedReps(exercise: Exercise, current: WorkoutSession?, history: List<WorkoutSession>): Int {
+    fun WorkoutSession.lastReps(): Int? =
+        results.lastOrNull { it.exerciseId == exercise.id && (it.actualReps ?: 0) > 0 }?.actualReps
+    val previous = current?.lastReps() ?: history.asSequence()
+        .filter { it.id != current?.id && it.plan.kind == PlanKind.WORKOUT }
+        .sortedByDescending { it.startedAt }
+        .mapNotNull { it.lastReps() }
+        .firstOrNull()
+    return (previous ?: exercise.targetMin).coerceIn(1, Limits.TARGET)
+}
+
+/** History correction: a completed rep set may gain, change or lose its recorded count. */
+fun WorkoutSession.withResultReps(resultId: String, reps: Int?): WorkoutSession {
+    val target = results.find { it.id == resultId } ?: throw IllegalArgumentException("修正するセットが見つかりません。")
+    require(target.mode == ExerciseMode.REPS && target.outcome == SetOutcome.COMPLETE) {
+        "回数を修正できるのは、完了した回数制のセットだけです。"
+    }
+    require(reps == null || reps in 1..Limits.TARGET) { "回数は1〜${Limits.TARGET}で入力してください。" }
+    return copy(results = results.map { if (it.id == resultId) it.copy(actualReps = reps) else it })
+}
 
 fun completedPlanStatus(results: List<SetResult>): SessionStatus = when {
     results.none { it.wasPerformed() } -> SessionStatus.INTERRUPTED

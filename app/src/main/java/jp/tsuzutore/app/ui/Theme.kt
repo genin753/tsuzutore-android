@@ -222,7 +222,7 @@ internal fun PageTitle(title: String, description: String? = null) {
 internal fun HelpText(text: String) = Text(text, color = TtStyle.Muted, style = MaterialTheme.typography.bodyMedium)
 
 internal fun clockText(ms: Long): String {
-    val seconds = ((ms.coerceAtLeast(0) + 999L) / 1000L)
+    val seconds = displaySeconds(ms)
     return "%02d:%02d".format(seconds / 60, seconds % 60)
 }
 

@@ -40,15 +40,18 @@ internal val japaneseDate: DateTimeFormatter = DateTimeFormatter.ofPattern("M月
 internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTemplate) -> Unit, interval: () -> Unit, menus: () -> Unit, calendar: () -> Unit) {
     val today = rememberToday()
     val monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val days = state.sessions.filter { it.plan.kind == PlanKind.WORKOUT && it.hasPerformed() }.mapNotNull { runCatching { LocalDate.parse(it.localDate) }.getOrNull() }.toSet()
+    val days = remember(state.sessions) {
+        state.sessions.filter { it.plan.kind == PlanKind.WORKOUT && it.hasPerformed() }
+            .mapNotNull { runCatching { LocalDate.parse(it.localDate) }.getOrNull() }
+            .toSet()
+    }
     val weekly = days.count { it >= monday && it < monday.plusDays(7) }
     val todayPlanned = today.dayOfWeek.value in state.settings.plannedDays || state.settings.scheduledWorkouts.any { it.date == today.toString() }
     val completedToday = today in days
     val nextDay = nextPlannedDate(state.settings, today)
     val scheduledTemplateId = sortedSchedule(state.settings.scheduledWorkouts).firstOrNull { scheduled -> scheduled.date == today.toString() && state.templates.any { it.id == scheduled.templateId } }?.templateId
     val template = state.templates.find { it.id == scheduledTemplateId } ?: state.templates.firstOrNull()
-    val firstDate = state.settings.firstWorkoutDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-    val firstWeek = state.settings.firstWeekEnabled && (firstDate == null || (today >= firstDate && today < firstDate.plusDays(7)))
+    val firstWeek = isFirstWeek(state.settings, today)
     val plannedSets = template?.exercises?.sumOf { if (firstWeek) 2 else it.sets } ?: 0
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -267,7 +270,7 @@ internal fun MenuScreen(state: AppUiState, preview: (MenuTemplate) -> Unit, edit
 internal fun PlanPreview(template: MenuTemplate, settings: AppSettings, busy: Boolean, back: () -> Unit, start: (WorkoutPlan) -> Unit) {
     val today = rememberToday()
     val firstDate = settings.firstWorkoutDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-    val firstWeek = settings.firstWeekEnabled && (firstDate == null || (today >= firstDate && today < firstDate.plusDays(7)))
+    val firstWeek = isFirstWeek(settings, today)
     val exercises = remember(template, firstWeek) { template.exercises.map { if (firstWeek) it.copy(sets = 2) else it } }
     var shortened by remember(template.id) { mutableStateOf(false) }
     var selected by remember(exercises) { mutableStateOf(exercises.associate { it.id to true }) }
@@ -305,13 +308,13 @@ internal fun PlanPreview(template: MenuTemplate, settings: AppSettings, busy: Bo
         TtCard(Modifier.fillMaxWidth()) {
             Text("準備運動", style = MaterialTheme.typography.titleMedium)
             HelpText("足踏み・肩回し・軽いスクワット。0秒なら省略します。開始後もスキップできます。")
-            NumericField("準備運動（秒）", warmup, { warmup = it }, warmupValue == null || warmupValue !in 0..1800, "0〜1800秒で入力してください")
+            NumericField("準備運動（秒）", warmup, { warmup = it }, warmupValue == null || warmupValue !in 0..Limits.WARMUP_SECONDS, "0〜${Limits.WARMUP_SECONDS}秒で入力してください")
         }
         Text("今日の内容：${actual.size}種目・${actual.sumOf { it.sets }}セット", style = MaterialTheme.typography.titleMedium)
         if (actual.isEmpty()) Text("少なくとも1種目を選んでください。", color = TtStyle.Red)
         MainButton("この内容で始める", {
             start(WorkoutPlan(template.id, template.name, actual, warmupValue!!, shortened, firstWeek))
-        }, Modifier.fillMaxWidth(), !busy && actual.isNotEmpty() && warmupValue != null && warmupValue in 0..1800)
+        }, Modifier.fillMaxWidth(), !busy && actual.isNotEmpty() && warmupValue != null && warmupValue in 0..Limits.WARMUP_SECONDS)
     }
 }
 
@@ -323,7 +326,15 @@ internal fun TemplateEditor(template: MenuTemplate, back: () -> Unit, save: (Men
     var deleting by remember { mutableStateOf<Exercise?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     EditorPage("メニューを編集", back) {
-        OutlinedTextField(name, { name = it; error = null }, label = { Text("メニュー名") }, modifier = Modifier.fillMaxWidth(), singleLine = true, isError = name.isBlank() || name.length > 80, supportingText = { Text("1〜80文字") })
+        OutlinedTextField(
+            name,
+            { name = it; error = null },
+            label = { Text("メニュー名") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            isError = name.isBlank() || name.length > Limits.NAME,
+            supportingText = { Text("1〜${Limits.NAME}文字") },
+        )
         HelpText("表示順を変えられます。トレーニング中はセット間に好きな種目を選べます。")
         exercises.forEachIndexed { index, exercise ->
             TtCard(Modifier.fillMaxWidth()) {
@@ -340,10 +351,16 @@ internal fun TemplateEditor(template: MenuTemplate, back: () -> Unit, save: (Men
                 }
             }
         }
-        SubButton("＋ 種目を追加", { editing = Exercise(UUID.randomUUID().toString(), "") }, Modifier.fillMaxWidth(), exercises.size < 30)
+        SubButton("＋ 種目を追加", { editing = Exercise(UUID.randomUUID().toString(), "") }, Modifier.fillMaxWidth(), exercises.size < Limits.TEMPLATE_EXERCISES)
+        if (exercises.size >= Limits.TEMPLATE_EXERCISES) HelpText("1つのメニューに入れられる種目は${Limits.TEMPLATE_EXERCISES}までです。")
         error?.let { Text(it, color = TtStyle.Red) }
         MainButton("メニューを保存", {
-            error = when { name.isBlank() -> "メニュー名を入力してください。"; name.length > 80 -> "メニュー名は80文字以内にしてください。"; exercises.isEmpty() -> "種目を1つ以上追加してください。"; else -> null }
+            error = when {
+                name.isBlank() -> "メニュー名を入力してください。"
+                name.length > Limits.NAME -> "メニュー名は${Limits.NAME}文字以内にしてください。"
+                exercises.isEmpty() -> "種目を1つ以上追加してください。"
+                else -> null
+            }
             if (error == null) save(template.copy(name = name.trim(), exercises = exercises))
         }, Modifier.fillMaxWidth())
         HelpText("保存するまでは元のメニューに反映されません。")
@@ -385,14 +402,14 @@ private fun ExerciseDialog(exercise: Exercise, dismiss: () -> Unit, save: (Exerc
                         mode = ExerciseMode.TIME
                     }, { Text("時間制") }, modifier = Modifier.heightIn(min = TtStyle.Target))
                 }
-                NumericField("セット数（1〜20）", sets, { sets = it })
+                NumericField("セット数（1〜${Limits.SETS}）", sets, { sets = it })
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     NumericField("目標の下限（${if (mode == ExerciseMode.REPS) "回" else "秒"}）", min, { min = it }, modifier = Modifier.weight(1f))
                     NumericField("目標の上限（${if (mode == ExerciseMode.REPS) "回" else "秒"}）", max, { max = it }, modifier = Modifier.weight(1f))
                 }
-                HelpText("目標範囲は1〜999${if (mode == ExerciseMode.REPS) "回" else "秒"}で設定できます。")
+                HelpText("目標範囲は1〜${Limits.TARGET}${if (mode == ExerciseMode.REPS) "回" else "秒"}で設定できます。")
                 if (mode == ExerciseMode.TIME) NumericField("今回の目標時間（範囲内の秒数）", seconds, { seconds = it })
-                NumericField("セット間休憩（0〜1800秒）", rest, { rest = it })
+                NumericField("セット間休憩（0〜${Limits.REST_SECONDS}秒）", rest, { rest = it })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(90, 120, 180).forEach { value -> FilterChip(rest == value.toString(), { rest = value.toString() }, { Text("${value}秒") }, modifier = Modifier.heightIn(min = TtStyle.Target)) }
                 }
@@ -402,12 +419,15 @@ private fun ExerciseDialog(exercise: Exercise, dismiss: () -> Unit, save: (Exerc
                 error?.let { Text(it, color = TtStyle.Red) }
                 MainButton("この種目を保存", {
                     error = when {
-                        name.isBlank() || name.length > 80 -> "種目名を1〜80文字で入力してください。"
-                        sets.toIntOrNull() !in 1..20 -> "セット数を1〜20で入力してください。"
-                        min.toIntOrNull() !in 1..999 || max.toIntOrNull() !in 1..999 || min.toInt() > max.toInt() -> "目標範囲は1〜999で、上限を下限以上にしてください。"
-                        mode == ExerciseMode.TIME && (seconds.toIntOrNull() !in 1..999 || seconds.toInt() !in min.toInt()..max.toInt()) -> "目標時間を、設定した目標範囲の中で入力してください。"
-                        rest.toIntOrNull() !in 0..1800 -> "休憩時間を0〜1800秒で入力してください。"
-                        load.length > 80 || difficulty.isBlank() || difficulty.length > 80 -> "負荷は80文字以内、難度は1〜80文字で入力してください。"
+                        name.isBlank() || name.length > Limits.NAME -> "種目名を1〜${Limits.NAME}文字で入力してください。"
+                        sets.toIntOrNull() !in 1..Limits.SETS -> "セット数を1〜${Limits.SETS}で入力してください。"
+                        min.toIntOrNull() !in 1..Limits.TARGET || max.toIntOrNull() !in 1..Limits.TARGET || min.toInt() > max.toInt() ->
+                            "目標範囲は1〜${Limits.TARGET}で、上限を下限以上にしてください。"
+                        mode == ExerciseMode.TIME && (seconds.toIntOrNull() !in 1..Limits.TARGET || seconds.toInt() !in min.toInt()..max.toInt()) ->
+                            "目標時間を、設定した目標範囲の中で入力してください。"
+                        rest.toIntOrNull() !in 0..Limits.REST_SECONDS -> "休憩時間を0〜${Limits.REST_SECONDS}秒で入力してください。"
+                        load.length > Limits.TEXT || difficulty.isBlank() || difficulty.length > Limits.TEXT ->
+                            "負荷は${Limits.TEXT}文字以内、難度は1〜${Limits.TEXT}文字で入力してください。"
                         else -> null
                     }
                     if (error == null) save(exercise.copy(name = name.trim(), mode = mode, sets = sets.toInt(), targetMin = min.toInt(), targetMax = max.toInt(), targetSeconds = if (mode == ExerciseMode.TIME) seconds.toInt() else exercise.targetSeconds, restSeconds = rest.toInt(), bilateral = bilateral, load = load.trim(), difficulty = difficulty.trim()))
@@ -423,13 +443,13 @@ internal fun IntervalSetup(busy: Boolean, back: () -> Unit, start: (WorkoutPlan)
     var work by remember { mutableStateOf("20") }
     var rest by remember { mutableStateOf("10") }
     var rounds by remember { mutableStateOf("8") }
-    val valid = work.toIntOrNull() in 1..3600 && rest.toIntOrNull() in 0..1800 && rounds.toIntOrNull() in 1..20
+    val valid = work.toIntOrNull() in 1..Limits.TARGET_SECONDS && rest.toIntOrNull() in 0..Limits.REST_SECONDS && rounds.toIntOrNull() in 1..Limits.SETS
     EditorPage("自由タイマー", back) {
         PageTitle("運動と休憩を繰り返す", "最初の準備カウントのあと、ラウンドが自動で進みます。")
         TtCard(Modifier.fillMaxWidth()) {
-            NumericField("運動時間（1〜3600秒）", work, { work = it }, work.toIntOrNull() !in 1..3600)
-            NumericField("休憩時間（0〜1800秒）", rest, { rest = it }, rest.toIntOrNull() !in 0..1800)
-            NumericField("ラウンド数（1〜20）", rounds, { rounds = it }, rounds.toIntOrNull() !in 1..20)
+            NumericField("運動時間（1〜${Limits.TARGET_SECONDS}秒）", work, { work = it }, work.toIntOrNull() !in 1..Limits.TARGET_SECONDS)
+            NumericField("休憩時間（0〜${Limits.REST_SECONDS}秒）", rest, { rest = it }, rest.toIntOrNull() !in 0..Limits.REST_SECONDS)
+            NumericField("ラウンド数（1〜${Limits.SETS}）", rounds, { rounds = it }, rounds.toIntOrNull() !in 1..Limits.SETS)
             SubButton("20秒＋10秒 × 8回に戻す", { work = "20"; rest = "10"; rounds = "8" }, Modifier.fillMaxWidth())
         }
         HelpText("この数字は時間の設定です。特定の研究と同じ運動強度や効果を表すものではありません。筋トレメニューとは別の記録に保存されます。")

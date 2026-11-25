@@ -1,8 +1,12 @@
 package jp.tsuzutore.app
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -58,8 +62,13 @@ class MainActivity : ComponentActivity() {
                 saveSettings = viewModel::saveSettings,
                 previewCues = viewModel::previewCues,
                 requestNotificationPermission = {
-                    if (Build.VERSION.SDK_INT >= 33) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    else viewModel.notificationResult(ReminderScheduler.hasNotificationPermission(this))
+                    when {
+                        Build.VERSION.SDK_INT >= 33 && !ReminderScheduler.hasNotificationPermission(this) ->
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        // Granted, but switched off for this app in system settings: only the settings screen can change it.
+                        !ReminderScheduler.notificationsAllowed(this) -> openNotificationSettings()
+                        else -> viewModel.notificationResult(true)
+                    }
                 },
                 exportBackup = { exportLauncher.launch("tsuzutore-${LocalDate.now()}.json") },
                 pickImport = { importLauncher.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
@@ -67,7 +76,29 @@ class MainActivity : ComponentActivity() {
                 cancelImport = viewModel::cancelImport,
                 dismissMessage = viewModel::dismissMessage,
                 confirmForm = viewModel::confirmForm,
+                completeSetWithReps = { viewModel.command(TimerAction.CompleteReps(it), revision) },
+                openNotificationSettings = ::openNotificationSettings,
+                deleteSession = viewModel::deleteSession,
+                updateSetReps = viewModel::updateSetReps,
             ))
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.refreshNotificationPermission()
+    }
+
+    private fun openNotificationSettings() {
+        val appNotifications = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+        try {
+            startActivity(appNotifications)
+        } catch (_: ActivityNotFoundException) {
+            try {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+            } catch (_: ActivityNotFoundException) {
+                viewModel.message("端末の設定アプリから、つづトレの通知を許可してください。")
+            }
         }
     }
 }

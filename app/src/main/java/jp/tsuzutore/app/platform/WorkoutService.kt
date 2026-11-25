@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -22,39 +23,41 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 
+/** Keeps a started workout alive in the background: notification and CPU wake lock. Cues live in [CueCoordinator]. */
 class WorkoutService : Service() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate +
+        CoroutineExceptionHandler { _, failure -> Log.w("TsuzuTore", "Workout service failure", failure) })
     private val app get() = application as TsuzuToreApplication
     private var wakeLock: PowerManager.WakeLock? = null
     private var lockToken: String? = null
     private var previous: RunState? = null
-    private var previousSecond: Long? = null
     private var notificationKey = ""
+    private var lastStartId = 0
 
     override fun onCreate() {
         super.onCreate()
         ReminderScheduler.createChannels(this)
-        val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(app.controller.run.value), type)
+        enterForeground()
         scope.launch {
             app.controller.awaitReady()
             app.controller.run.combine(app.controller.settings) { state, settings -> state to settings }.collectLatest { (state, settings) ->
                 try {
+                    previous = state
                     maintainWakeLock(state)
-                    emitCues(state)
-                    if (state.session != null && !state.active) {
+                    if (state.session != null) updateNotification(state, settings)
+                    if (!state.active) {
+                        // Let the final cue finish before stopping. Starting another workout cancels this wait.
+                        // A cleared run (its record was deleted) has nothing left to announce.
+                        if (state.session != null) delay(FINISH_GRACE_MS)
                         releaseWakeLock()
                         stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf()
-                    } else {
-                        val key = "${state.session?.id}:${state.revision}:${ceil(state.remainingMs / 1000.0).toLong()}:${settings.notificationsEnabled}"
-                        if (key != notificationKey) {
-                            notificationKey = key
-                            if (ReminderScheduler.hasNotificationPermission(this@WorkoutService))
-                                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(state))
-                        }
+                        // Stops only if no newer start arrived meanwhile; that start brings the service back to the foreground.
+                        stopSelfResult(lastStartId)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
+                    Log.w("TsuzuTore", "Workout service stopped after a failure", e)
                     releaseWakeLock()
                     app.controller.pauseForServiceShutdown()
                     stopSelf()
@@ -64,12 +67,22 @@ class WorkoutService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        lastStartId = startId
         if (intent?.action == ACTION_TOGGLE) {
             val revision = intent.getLongExtra(EXTRA_REVISION, -1)
             val paused = intent.getBooleanExtra(EXTRA_PAUSED, false)
             scope.launch { runCatching { app.controller.command(if (paused) TimerAction.Resume else TimerAction.Pause, revision) } }
+        } else {
+            // Every startForegroundService() must be answered with startForeground(), including one that
+            // reaches this instance while it is about to stop after a finished workout.
+            runCatching { enterForeground() }.onFailure { Log.w("TsuzuTore", "Could not keep the timer in the foreground", it) }
         }
         return START_NOT_STICKY
+    }
+
+    private fun enterForeground() {
+        val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(app.controller.run.value), type)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -80,57 +93,53 @@ class WorkoutService : Service() {
         val revision = previous?.revision
         if (app.controller.run.value.active && app.controller.run.value.revision == revision) app.cues.silence()
         scope.cancel()
-        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch { app.controller.pauseForServiceShutdown(sessionId, revision) }
+        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+            runCatching { app.controller.pauseForServiceShutdown(sessionId, revision) }
+        }
         super.onDestroy()
     }
 
+    /**
+     * Countdowns hold the CPU until their deadline. When one ends, the lock is kept briefly instead of
+     * being released at once, so the cue for that transition is not cut off while the screen is off.
+     */
     private fun maintainWakeLock(state: RunState) {
         val counting = state.active && (state.stage in setOf(TimerStage.WARMUP, TimerStage.PREPARING, TimerStage.RESTING) ||
             (state.stage == TimerStage.EXERCISING && state.exercise?.mode == ExerciseMode.TIME))
-        if (!counting) { releaseWakeLock(); return }
-        val token = "${state.session?.id}:${state.revision}"
-        if (lockToken == token && wakeLock?.isHeld == true) return
-        releaseWakeLock()
-        val manager = getSystemService(PowerManager::class.java)
-        wakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tsuzutore:countdown").apply {
-            setReferenceCounted(false)
-            acquire((state.remainingMs + 15_000L).coerceIn(15_000L, 7_215_000L))
+        when {
+            counting -> {
+                val token = "${state.session?.id}:${state.revision}"
+                if (lockToken == token && wakeLock?.isHeld == true) return
+                holdWakeLock((state.remainingMs + 15_000L).coerceIn(15_000L, 7_215_000L), token)
+            }
+            state.session == null || state.stage == TimerStage.PAUSED -> releaseWakeLock()
+            lockToken != null && lockToken?.endsWith(GRACE_SUFFIX) != true ->
+                holdWakeLock(CUE_GRACE_MS, "${state.session?.id}$GRACE_SUFFIX")
         }
+    }
+
+    private fun holdWakeLock(timeoutMs: Long, token: String) {
+        val lock = wakeLock ?: getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tsuzutore:countdown")
+            .apply { setReferenceCounted(false) }
+        // Re-acquiring a non-counted lock replaces its timeout.
+        lock.acquire(timeoutMs)
+        wakeLock = lock
         lockToken = token
     }
 
     private fun releaseWakeLock() {
         wakeLock?.let { if (it.isHeld) it.release() }
-        wakeLock = null
         lockToken = null
     }
 
-    private fun emitCues(state: RunState) {
-        val old = previous
-        val settings = app.controller.settings.value
-        val changed = old == null || old.session?.id != state.session?.id || old.stage != state.stage ||
-            old.exerciseIndex != state.exerciseIndex || old.setNumber != state.setNumber || old.side != state.side
-        if (changed && state.stage == TimerStage.PAUSED) app.cues.silence()
-        if (changed && state.session != null && state.stage != TimerStage.PAUSED) {
-            val text = when (state.stage) {
-                TimerStage.WARMUP -> "準備運動を始めましょう"
-                TimerStage.READY -> "${state.exercise?.name.orEmpty()}。準備ができたら開始してください"
-                TimerStage.SIDE_SWITCH -> "右側へ切り替えましょう。準備ができたら開始してください"
-                TimerStage.EXERCISING -> "開始"
-                TimerStage.RESTING -> "セット終了。休憩しましょう"
-                TimerStage.COMPLETED -> "おつかれさまでした。記録を保存しました"
-                TimerStage.INTERRUPTED -> "ここまでの記録を保存しました"
-                else -> null
-            }
-            text?.let { app.cues.play(it, settings) }
-            previousSecond = null
+    private fun updateNotification(state: RunState, settings: AppSettings) {
+        val key = "${state.session?.id}:${state.revision}:${ceil(state.remainingMs / 1000.0).toLong()}:${settings.notificationsEnabled}"
+        if (key == notificationKey) return
+        notificationKey = key
+        if (ReminderScheduler.hasNotificationPermission(this)) {
+            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(state))
         }
-        val countdownStage = state.stage in setOf(TimerStage.WARMUP, TimerStage.PREPARING, TimerStage.RESTING) ||
-            (state.stage == TimerStage.EXERCISING && state.exercise?.mode == ExerciseMode.TIME)
-        val second = ceil(state.remainingMs / 1000.0).toLong()
-        if (countdownStage && second in 1..3 && previousSecond != second) app.cues.play(second.toString(), settings, true)
-        previousSecond = if (countdownStage) second else null
-        previous = state
     }
 
     private fun notification(state: RunState): Notification {
@@ -148,6 +157,8 @@ class WorkoutService : Service() {
                 TimerStage.SIDE_SWITCH -> "右側への切り替え待ち"
                 TimerStage.READY -> "準備ができたらアプリで開始"
                 TimerStage.PREPARING -> "開始まで${ceil(state.remainingMs / 1000.0).toLong()}秒"
+                TimerStage.COMPLETED -> "おつかれさまでした。記録を保存しました"
+                TimerStage.INTERRUPTED -> "ここまでの記録を保存しました"
                 else -> "タイマーを準備しています"
             })
             .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).setSilent(true)
@@ -170,6 +181,9 @@ class WorkoutService : Service() {
         private const val ACTION_TOGGLE = "jp.tsuzutore.app.TOGGLE_TIMER"
         private const val EXTRA_REVISION = "revision"
         private const val EXTRA_PAUSED = "paused"
+        private const val GRACE_SUFFIX = ":cue-grace"
+        private const val CUE_GRACE_MS = 8_000L
+        private const val FINISH_GRACE_MS = 5_000L
         fun start(context: Context) { ContextCompat.startForegroundService(context, Intent(context, WorkoutService::class.java)) }
         fun stop(context: Context) { context.stopService(Intent(context, WorkoutService::class.java)) }
     }

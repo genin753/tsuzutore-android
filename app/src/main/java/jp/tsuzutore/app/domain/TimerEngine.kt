@@ -67,6 +67,15 @@ class TimerEngine(private val clock: MonotonicClock) {
         return state
     }
 
+    /** History edits of the finished run this engine still holds. An active run is never rewritten. */
+    @Synchronized
+    fun replaceFinishedSession(session: WorkoutSession): RunState {
+        val current = state.session
+        check(current != null && current.id == session.id && !state.active) { "終了した記録だけを修正できます。" }
+        state = state.copy(session = session, revision = state.revision + 1)
+        return state
+    }
+
     @Synchronized
     fun tick(walltime: Long? = null): RunState {
         val now = clock.nowMs()
@@ -295,7 +304,8 @@ class TimerEngine(private val clock: MonotonicClock) {
 
     private fun sample(now: Long) {
         val anchor = anchorMs ?: return
-        val elapsed = elapsedAtAnchor + (now - anchor).coerceAtLeast(0)
+        // Countdowns end long before the cap; it only stops a forgotten rep set from becoming an invalid record.
+        val elapsed = (elapsedAtAnchor + (now - anchor).coerceAtLeast(0)).coerceAtMost(Limits.MAX_SET_ELAPSED_MS)
         state = state.copy(elapsedMs = elapsed, remainingMs = deadlineMs?.let { (it - now).coerceAtLeast(0) } ?: state.remainingMs)
     }
 }

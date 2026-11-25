@@ -9,6 +9,7 @@ import jp.tsuzutore.app.domain.*
 import jp.tsuzutore.app.platform.ReminderScheduler
 import jp.tsuzutore.app.platform.WorkoutService
 import jp.tsuzutore.app.ui.AppUiState
+import jp.tsuzutore.app.ui.displaysSameAs
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -18,14 +19,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val controller = app.controller
     private val mutableState = MutableStateFlow(AppUiState())
     val state: StateFlow<AppUiState> = mutableState.asStateFlow()
+    private val notificationsAllowed = MutableStateFlow(ReminderScheduler.notificationsAllowed(app))
     private var pendingImport: String? = null
     private var operations = 0
 
     init {
         viewModelScope.launch {
             controller.awaitReady()
-            combine(repository.templates, repository.sessions, repository.settings, controller.run) { templates, sessions, settings, run ->
-                AppUiState(templates, sessions, settings, run, loading = false)
+            // The engine is sampled 5 times a second; the screen changes at most once a second.
+            val displayedRun = controller.run.distinctUntilChanged { old, new -> old.displaysSameAs(new) }
+            combine(repository.templates, repository.sessions, repository.settings, displayedRun, notificationsAllowed) { templates, sessions, settings, run, allowed ->
+                AppUiState(templates, sessions, settings, run, loading = false, notificationsAllowed = allowed)
             }.catch { message("記録を読み込めませんでした。アプリを開き直してください。"); mutableState.update { it.copy(loading = false) } }
                 .collect { data -> mutableState.update { data.copy(busy = it.busy, message = it.message, importPreview = it.importPreview) } }
         }
@@ -56,18 +60,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveTemplate(template: MenuTemplate) = perform { repository.saveTemplate(template); message("メニューを保存しました。") }
     fun deleteTemplate(id: String) = perform { repository.deleteTemplate(id); message("メニューを削除しました。") }
     fun reorderTemplates(ids: List<String>) = perform { repository.reorderTemplates(ids) }
-    fun saveSettings(settings: AppSettings) = perform {
-        repository.updateSettings { settings }
-        ReminderScheduler.schedule(app, repository.settings.first())
-        message("設定を保存しました。")
+
+    /** Applies the settings screen's edits to the latest stored settings (calendar plans stay intact). */
+    fun saveSettings(change: (AppSettings) -> AppSettings) = perform {
+        repository.updateSettings(change)
+        val saved = repository.settings.first()
+        ReminderScheduler.schedule(app, saved)
+        refreshNotificationPermission()
+        message(
+            if (saved.reminderEnabled && !notificationsAllowed.value) "設定を保存しました。通知が許可されていないため、リマインドは届きません。"
+            else "設定を保存しました。"
+        )
     }
+
     fun confirmForm(id: String, confirmed: Boolean) = perform { controller.confirmForm(id, confirmed) }
     fun previewCues() { app.cues.preview(state.value.settings) }
 
+    fun deleteSession(id: String) = perform {
+        controller.deleteSession(id)
+        message("記録を削除しました。")
+    }
+
+    fun updateSetReps(sessionId: String, resultId: String, reps: Int?) = perform {
+        controller.updateSetReps(sessionId, resultId, reps)
+        message(if (reps == null) "回数を未記録に戻しました。" else "回数を記録しました。")
+    }
+
+    /** Re-read on every resume: the user may change the permission in system settings at any time. */
+    fun refreshNotificationPermission() {
+        notificationsAllowed.value = ReminderScheduler.notificationsAllowed(app)
+    }
+
+    /** The permission answer never rewrites a setting; it only reschedules reminders and reports the result. */
     fun notificationResult(granted: Boolean) = perform {
-        repository.updateSettings { it.copy(notificationsEnabled = granted) }
+        refreshNotificationPermission()
         ReminderScheduler.schedule(app, repository.settings.first())
-        message(if (granted) "通知を有効にしました。" else "通知は許可されていません。画面上のタイマーや記録は利用できます。")
+        message(
+            if (granted && notificationsAllowed.value) "通知を許可しました。リマインドと実行中タイマーの通知が表示されます。"
+            else "通知は許可されていません。タイマーと記録は使えます。許可するときは「端末の通知設定を開く」から変更してください。"
+        )
     }
 
     fun exportTo(uri: Uri) = perform {

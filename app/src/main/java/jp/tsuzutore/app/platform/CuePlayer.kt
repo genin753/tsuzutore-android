@@ -2,6 +2,7 @@ package jp.tsuzutore.app.platform
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
@@ -21,6 +22,14 @@ class CuePlayer(private val context: Context) {
     private var speech: TextToSpeech? = null
     private var offlineVoiceReady = false
     private val tone: ToneGenerator? = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 70) }.getOrNull()
+    private val headphoneTypes = buildSet {
+        add(AudioDeviceInfo.TYPE_WIRED_HEADSET)
+        add(AudioDeviceInfo.TYPE_WIRED_HEADPHONES)
+        add(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+        add(AudioDeviceInfo.TYPE_USB_HEADSET)
+        if (Build.VERSION.SDK_INT >= 28) add(AudioDeviceInfo.TYPE_HEARING_AID)
+        if (Build.VERSION.SDK_INT >= 31) add(AudioDeviceInfo.TYPE_BLE_HEADSET)
+    }
 
     init {
         speech = TextToSpeech(context) { status ->
@@ -41,7 +50,8 @@ class CuePlayer(private val context: Context) {
     }
 
     fun play(text: String, settings: AppSettings, countdown: Boolean = false) {
-        val audible = audio.ringerMode == AudioManager.RINGER_MODE_NORMAL
+        // Silent/vibrate mode stays quiet unless the user opted in, or only they can hear it (headphones).
+        val audible = audio.ringerMode == AudioManager.RINGER_MODE_NORMAL || settings.cuesInSilentMode || headphonesConnected()
         if (settings.soundEnabled && audible) {
             runCatching { tone?.startTone(if (countdown) ToneGenerator.TONE_PROP_BEEP else ToneGenerator.TONE_PROP_ACK, if (countdown) 100 else 200) }
         }
@@ -55,4 +65,8 @@ class CuePlayer(private val context: Context) {
 
     fun preview(settings: AppSettings) = play("つづトレ。次のセットを始めましょう", settings)
     fun silence() { speech?.stop(); tone?.stopTone(); vibrator?.cancel() }
+
+    private fun headphonesConnected(): Boolean = runCatching {
+        audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in headphoneTypes }
+    }.getOrDefault(false)
 }

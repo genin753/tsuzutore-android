@@ -88,6 +88,8 @@ data class AppSettings(
     val reminderEnabled: Boolean = false,
     val notificationsEnabled: Boolean = false,
     val scheduledWorkouts: List<ScheduledWorkout> = emptyList(),
+    /** Off keeps silent mode quiet; connected headphones still receive cues. */
+    val cuesInSilentMode: Boolean = false,
 )
 
 /** A durable snapshot. Monotonic deadlines deliberately never cross process boundaries. */

@@ -107,8 +107,8 @@ class DesktopController(scope: CoroutineScope, private val dataPath: Path) {
                 val byId = document.templates.associateBy { it.id }
                 commit(document.copy(templates = ids.map(byId::getValue)))
             } },
-            saveSettings = { settings -> perform {
-                commit(document.copy(settings = settings.copy(firstWorkoutDate = settings.firstWorkoutDate ?: document.settings.firstWorkoutDate)))
+            saveSettings = { change -> perform {
+                commit(document.copy(settings = change(document.settings)))
                 message("設定を保存しました。PC版ではAndroidの通知・振動・音声案内を再現しません。")
             } },
             previewCues = { perform {
@@ -125,7 +125,39 @@ class DesktopController(scope: CoroutineScope, private val dataPath: Path) {
                 if (engine.state.session?.id == id) publish(engine.updateFormConfirmation(id, confirmed), true)
                 else commit(document.copy(sessions = document.sessions.map { if (it.id == id) it.copy(formConfirmed = confirmed) else it }))
             } },
+            completeSetWithReps = { reps -> command(TimerAction.CompleteReps(reps), revision) },
+            openNotificationSettings = { perform { message("PC版にAndroidの通知設定はありません。通知は実機で確認してください。") } },
+            deleteSession = ::deleteSession,
+            updateSetReps = ::updateSetReps,
         )
+    }
+
+    private fun deleteSession(id: String) = perform {
+        require(!(engine.state.active && engine.state.session?.id == id)) { "進行中のトレーニングは削除できません。終了してから削除してください。" }
+        val clearsRun = engine.state.session?.id == id
+        val replacement = document.copy(sessions = document.sessions.filterNot { it.id == id }, runtime = if (clearsRun) null else document.runtime)
+        val previous = engine.state
+        if (clearsRun) engine.restore(RunState())
+        try {
+            commit(replacement)
+        } catch (error: Exception) {
+            engine.restore(previous)
+            throw error
+        }
+        message("記録を削除しました。")
+    }
+
+    private fun updateSetReps(sessionId: String, resultId: String, reps: Int?) = perform {
+        val held = engine.state.session
+        if (held != null && held.id == sessionId) {
+            require(!engine.state.active) { "進行中の記録は、トレーニングの終了後に修正できます。" }
+            publish(engine.replaceFinishedSession(held.withResultReps(resultId, reps)), true)
+        } else {
+            val session = document.sessions.find { it.id == sessionId } ?: throw IllegalArgumentException("記録が見つかりません。")
+            val updated = session.withResultReps(resultId, reps)
+            commit(document.copy(sessions = document.sessions.map { if (it.id == sessionId) updated else it }))
+        }
+        message(if (reps == null) "回数を未記録に戻しました。" else "回数を記録しました。")
     }
 
     private fun start(plan: WorkoutPlan, immediate: Boolean) = perform {

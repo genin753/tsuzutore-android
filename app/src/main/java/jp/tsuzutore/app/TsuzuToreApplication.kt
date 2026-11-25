@@ -2,6 +2,7 @@ package jp.tsuzutore.app
 
 import android.app.Application
 import jp.tsuzutore.app.data.AppRepository
+import jp.tsuzutore.app.platform.CueCoordinator
 import jp.tsuzutore.app.platform.CuePlayer
 import jp.tsuzutore.app.platform.WorkoutController
 
@@ -12,11 +13,14 @@ class TsuzuToreApplication : Application() {
         private set
     lateinit var cues: CuePlayer
         private set
+    lateinit var cueCoordinator: CueCoordinator
+        private set
 
     override fun onCreate() {
         super.onCreate()
         repository = AppRepository(this)
         cues = CuePlayer(this)
         controller = WorkoutController(this, repository)
+        cueCoordinator = CueCoordinator(controller, cues)
     }
 }

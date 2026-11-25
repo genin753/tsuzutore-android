@@ -29,6 +29,11 @@ internal fun WorkoutScreen(state: AppUiState, actions: AppUiActions, home: () ->
     var finishConfirmation by remember { mutableStateOf(false) }
     var skipConfirmation by remember { mutableStateOf<String?>(null) }
     var skipAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    // Optional count for the current set; starts unrecorded again for every set and side.
+    var reps by remember(session.id, run.exerciseIndex, run.setNumber, run.side) { mutableStateOf<Int?>(null) }
+    val suggestion = remember(session.results, state.sessions, exercise?.id) {
+        exercise?.let { suggestedReps(it, session, state.sessions) } ?: 1
+    }
     val workoutScroll = rememberScrollState()
     LaunchedEffect(run.stage) {
         if (run.stage == TimerStage.PREPARING || run.stage == TimerStage.EXERCISING) {
@@ -175,10 +180,14 @@ internal fun WorkoutScreen(state: AppUiState, actions: AppUiActions, home: () ->
                     if (exercise?.mode == ExerciseMode.REPS) {
                         MainButton(
                             if (run.side == Side.LEFT) "左側を完了" else "セット完了",
-                            actions.completeSet,
+                            {
+                                val count = reps
+                                if (count != null) actions.completeSetWithReps(count) else actions.completeSet()
+                            },
                             Modifier.fillMaxWidth(),
                             !state.busy,
                         )
+                        RepEntry(reps, suggestion, { reps = it }, !state.busy)
                     } else {
                         SubButton("このセットをここまでで終了", actions.finishTimedSet, Modifier.fillMaxWidth(), !state.busy)
                         if (exercise?.load?.isNotBlank() == true) HelpText("負荷：${exercise.load}")
@@ -238,9 +247,44 @@ internal fun WorkoutScreen(state: AppUiState, actions: AppUiActions, home: () ->
         }
         Spacer(Modifier.height(16.dp))
     }
-    if (finishConfirmation) AlertDialog(onDismissRequest = { finishConfirmation = false }, title = { Text("ここまでで終了しますか？") }, text = { Text("完了したセットと、時間制の計測分を保存して終了します。") }, confirmButton = { TextButton({ finishConfirmation = false; actions.finishWorkout() }) { Text("保存して終了", color = TtStyle.Red) } }, dismissButton = { TextButton({ finishConfirmation = false }) { Text("トレーニングに戻る") } })
+    if (finishConfirmation) {
+        AlertDialog(
+            onDismissRequest = { finishConfirmation = false },
+            title = { Text("ここまでで終了しますか？") },
+            text = { Text("完了したセットと、時間制の計測分を保存して終了します。") },
+            confirmButton = {
+                TextButton({ finishConfirmation = false; actions.finishWorkout() }) { Text("保存して終了", color = TtStyle.Red) }
+            },
+            dismissButton = { TextButton({ finishConfirmation = false }) { Text("トレーニングに戻る") } },
+        )
+    }
     skipConfirmation?.let { which ->
-        AlertDialog(onDismissRequest = { skipConfirmation = null }, title = { Text(if (which == "set") "このセットをスキップしますか？" else "この種目をスキップしますか？") }, text = { Text("スキップしたセットは実施済みに数えません。") }, confirmButton = { TextButton({ skipConfirmation = null; skipAction?.invoke(); skipAction = null }) { Text("スキップする") } }, dismissButton = { TextButton({ skipConfirmation = null }) { Text("戻る") } })
+        AlertDialog(
+            onDismissRequest = { skipConfirmation = null },
+            title = { Text(if (which == "set") "このセットをスキップしますか？" else "この種目をスキップしますか？") },
+            text = { Text("スキップしたセットは実施済みに数えません。") },
+            confirmButton = {
+                TextButton({ skipConfirmation = null; skipAction?.invoke(); skipAction = null }) { Text("スキップする") }
+            },
+            dismissButton = { TextButton({ skipConfirmation = null }) { Text("戻る") } },
+        )
+    }
+}
+
+/** Recording the count stays optional: one tap on "セット完了" is still enough. */
+@Composable
+private fun RepEntry(reps: Int?, suggestion: Int, change: (Int?) -> Unit, enabled: Boolean) {
+    if (reps == null) {
+        TextButton({ change(suggestion) }, Modifier.fillMaxWidth().heightIn(min = TtStyle.Target), enabled = enabled) {
+            Text("＋ 回数も記録する（任意）")
+        }
+    } else {
+        TtCard(Modifier.fillMaxWidth()) {
+            Text("このセットの回数", style = MaterialTheme.typography.titleMedium)
+            NumberStepper("回数", reps, 1, Limits.TARGET) { change(it) }
+            HelpText("完了ボタンで、この回数も記録します。前回比較と負荷の目安に使います。")
+            TextButton({ change(null) }, Modifier.heightIn(min = TtStyle.Target), enabled = enabled) { Text("回数は記録しない") }
+        }
     }
 }
 

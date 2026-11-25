@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import jp.tsuzutore.app.MainActivity
 import jp.tsuzutore.app.R
@@ -32,6 +33,10 @@ object ReminderScheduler {
 
     fun hasNotificationPermission(context: Context): Boolean =
         Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    /** Permission granted and notifications not switched off for the app in system settings. */
+    fun notificationsAllowed(context: Context): Boolean =
+        hasNotificationPermission(context) && NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)

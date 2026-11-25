@@ -15,7 +15,7 @@ $env:GRADLE_USER_HOME = Join-Path $toolsDir 'gradle-cache'
 $env:ANDROID_USER_HOME = Join-Path $toolsDir 'android-user'
 $env:DEBUG = ''
 [System.IO.File]::WriteAllText((Join-Path $projectDir 'local.properties'), ('sdk.dir=' + $env:ANDROID_HOME.Replace('\', '/').Replace(':', '\:') + "`n"), [System.Text.Encoding]::ASCII)
-$gradleArgs = @('testDebugUnitTest', 'lintDebug', 'assembleDebug', '--no-daemon', '--max-workers=4', '--console=plain')
+$gradleArgs = @('testDebugUnitTest', 'lintDebug', 'assembleDebug', 'assembleRelease', '--no-daemon', '--max-workers=4', '--console=plain')
 if ($Offline) { $gradleArgs += '--offline' }
 if ($WithAndroidTestCompile) { $gradleArgs += 'compileDebugAndroidTestKotlin' }
 Push-Location $projectDir
@@ -30,5 +30,7 @@ try {
     $artifactsDir = Join-Path $projectDir 'artifacts'
     New-Item -ItemType Directory -Force -Path $artifactsDir | Out-Null
     Copy-Item -LiteralPath (Join-Path $projectDir 'app/build/outputs/apk/debug/app-debug.apk') -Destination (Join-Path $artifactsDir 'tsuzutore-debug.apk') -Force
-    Write-Output ('APK: ' + (Join-Path $artifactsDir 'tsuzutore-debug.apk'))
+    Copy-Item -LiteralPath (Join-Path $projectDir 'app/build/outputs/apk/release/app-release.apk') -Destination (Join-Path $artifactsDir 'tsuzutore-release.apk') -Force
+    Write-Output ('普段使うAPK（release）: ' + (Join-Path $artifactsDir 'tsuzutore-release.apk'))
+    Write-Output ('検証用APK（debug）: ' + (Join-Path $artifactsDir 'tsuzutore-debug.apk'))
 } finally { Pop-Location }

@@ -63,6 +63,7 @@ interface AppDao {
     @Query("DELETE FROM exercise_definitions WHERE templateId = :templateId") suspend fun deleteExercises(templateId: String)
     @Query("DELETE FROM menu_templates WHERE id = :id") suspend fun deleteTemplate(id: String)
     @Query("DELETE FROM set_results WHERE sessionId = :sessionId") suspend fun deleteResults(sessionId: String)
+    @Query("DELETE FROM workout_sessions WHERE id = :id") suspend fun deleteSession(id: String)
     @Query("DELETE FROM runtime_snapshot") suspend fun deleteRuntime()
     @Query("DELETE FROM set_results") suspend fun deleteAllResults()
     @Query("DELETE FROM workout_sessions") suspend fun deleteAllSessions()

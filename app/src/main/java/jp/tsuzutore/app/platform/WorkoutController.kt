@@ -15,16 +15,20 @@ import kotlinx.coroutines.sync.withLock
 
 /** One engine per application process; Activity, notifications and service share this owner. */
 class WorkoutController(private val context: Context, private val repository: AppRepository) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val mutableError = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = mutableError.asStateFlow()
+
+    // A storage failure in a background collector is reported instead of crashing the whole app.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate +
+        CoroutineExceptionHandler { _, failure -> report(failure, "記録を読み込めませんでした。アプリを開き直してください。") })
     private val mutex = Mutex()
     private val engine = TimerEngine(MonotonicClock { SystemClock.elapsedRealtime() })
     private val initialized = CompletableDeferred<Unit>()
     private val mutableRun = MutableStateFlow(RunState())
     val run: StateFlow<RunState> = mutableRun.asStateFlow()
     val settings = repository.settings.stateIn(scope, SharingStarted.Eagerly, AppSettings())
-    private val mutableError = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = mutableError.asStateFlow()
     private var lastCheckpoint = 0L
+    private var lastSaved: RunState? = null
 
     init {
         scope.launch {
@@ -75,7 +79,9 @@ class WorkoutController(private val context: Context, private val repository: Ap
                 repository.updateSettings { it.copy(firstWorkoutDate = date.toString()) }
             }
             val started = engine.start(plan, UUID.randomUUID().toString(), System.currentTimeMillis(), date.toString(), zone.id)
-            val ready = if (startImmediately && started.stage == TimerStage.READY) engine.dispatch(TimerAction.StartSet, started.revision, System.currentTimeMillis()) else started
+            val ready = if (startImmediately && started.stage == TimerStage.READY) {
+                engine.dispatch(TimerAction.StartSet, started.revision, System.currentTimeMillis())
+            } else started
             publish(ready, true)
             true
         }
@@ -101,6 +107,7 @@ class WorkoutController(private val context: Context, private val repository: Ap
                 publish(engine.dispatch(TimerAction.Pause), true)
             }
             repository.importBackup(text)
+            lastSaved = null
             val imported = repository.loadRun()
             if (imported != null) {
                 val paused = engine.restore(imported)
@@ -122,10 +129,44 @@ class WorkoutController(private val context: Context, private val repository: Ap
         }
     }
 
+    /** Deletes a finished record. The finished run shown by the engine is cleared with it. */
+    suspend fun deleteSession(sessionId: String) {
+        initialized.await()
+        mutex.withLock {
+            val current = engine.state
+            require(!(current.active && current.session?.id == sessionId)) {
+                "進行中のトレーニングは削除できません。終了してから削除してください。"
+            }
+            repository.deleteSession(sessionId)
+            if (current.session?.id == sessionId) {
+                lastSaved = null
+                mutableRun.value = engine.restore(RunState())
+            }
+        }
+    }
+
+    /** Adds, changes or clears the recorded count of a completed rep set after the workout. */
+    suspend fun updateSetReps(sessionId: String, resultId: String, reps: Int?) {
+        initialized.await()
+        mutex.withLock {
+            val held = engine.state.session
+            if (held != null && held.id == sessionId) {
+                require(!engine.state.active) { "進行中の記録は、トレーニングの終了後に修正できます。" }
+                publish(engine.replaceFinishedSession(held.withResultReps(resultId, reps)), true)
+            } else {
+                val session = repository.sessions.first().find { it.id == sessionId }
+                    ?: throw IllegalArgumentException("記録が見つかりません。")
+                repository.saveSession(session.withResultReps(resultId, reps))
+            }
+        }
+    }
+
     suspend fun pauseForServiceShutdown(expectedSessionId: String? = run.value.session?.id, expectedRevision: Long? = null) {
         initialized.await()
         mutex.withLock {
-            if (engine.state.session?.id == expectedSessionId && (expectedRevision == null || engine.state.revision == expectedRevision) && engine.state.active && engine.state.stage != TimerStage.PAUSED) {
+            val state = engine.state
+            if (state.session?.id == expectedSessionId && (expectedRevision == null || state.revision == expectedRevision) &&
+                state.active && state.stage != TimerStage.PAUSED) {
                 runCatching { publish(engine.dispatch(TimerAction.Pause), true) }
             }
         }
@@ -135,8 +176,11 @@ class WorkoutController(private val context: Context, private val repository: Ap
 
     private suspend fun publish(value: RunState, forceSave: Boolean) {
         val now = SystemClock.elapsedRealtime()
-        if (forceSave || now - lastCheckpoint >= 5_000) {
-            repository.saveRun(value)
+        if (forceSave || (now - lastCheckpoint >= 5_000 && value != lastSaved)) {
+            // Clock-only checkpoints keep set results untouched; transitions save everything together.
+            val includeSession = forceSave || value.session != lastSaved?.session
+            repository.saveRun(value, includeSession)
+            lastSaved = value
             lastCheckpoint = now
         }
         mutableRun.value = value
@@ -148,7 +192,7 @@ class WorkoutController(private val context: Context, private val repository: Ap
         report(error, "保存できなかったため一時停止しました。空き容量を確認して、再開をお試しください。")
     }
 
-    private fun report(error: Exception, message: String) {
+    private fun report(error: Throwable, message: String) {
         Log.e("TsuzuTore", message, error)
         mutableError.value = message
     }

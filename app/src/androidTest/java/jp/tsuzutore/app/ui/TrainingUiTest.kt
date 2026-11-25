@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import jp.tsuzutore.app.domain.*
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -93,19 +94,100 @@ class TrainingUiTest {
         compose.onNodeWithText("再開する").assertExists()
     }
 
+    @Test fun repSetCanOptionallyRecordTheCountBeforeCompleting() {
+        var plain = 0
+        val recorded = mutableListOf<Int>()
+        val session = WorkoutSession("reps-ui", 1000, "2026-10-20", "Asia/Tokyo", plan)
+        val run = RunState(session, TimerStage.EXERCISING, exerciseIndex = 0)
+        compose.setContent {
+            TsuzuToreTheme {
+                WorkoutScreen(state(run), actions(onComplete = { plain++ }, onCompleteWithReps = { recorded += it })) { }
+            }
+        }
+
+        compose.onNodeWithText("＋ 回数も記録する（任意）").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("回数を増やす").performScrollTo().performClick()
+        compose.onNodeWithText("セット完了").performScrollTo().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(pushup.targetMin + 1), recorded)
+            assertEquals(0, plain)
+        }
+    }
+
+    @Test fun historyRecordIsDeletedOnlyAfterConfirmation() {
+        val deleted = mutableListOf<String>()
+        val result = SetResult("done-ui:pushup", "done-ui", pushup.id, pushup.name, 1, Side.BOTH, ExerciseMode.REPS,
+            outcome = SetOutcome.COMPLETE, targetMin = pushup.targetMin, targetMax = pushup.targetMax, targetSeconds = pushup.targetSeconds)
+        val done = WorkoutSession("done-ui", 1000, "2026-10-20", "Asia/Tokyo", plan, listOf(result), SessionStatus.PARTIAL, endedAt = 2000)
+        compose.setContent { TsuzuToreApp(state().copy(sessions = listOf(done)), actions(onDelete = { deleted += it })) }
+
+        compose.onNodeWithText("記録").performClick()
+        compose.onNodeWithText("実績を見る").performScrollTo().performClick()
+        compose.onNodeWithText("回数を入力").assertExists()
+        compose.onNodeWithText("この記録を削除").performScrollTo().performClick()
+        compose.runOnIdle { assertTrue(deleted.isEmpty()) }
+        compose.onNodeWithText("削除する").performClick()
+        compose.runOnIdle { assertEquals(listOf("done-ui"), deleted) }
+    }
+
+    @Test fun enablingReminderWithoutPermissionAsksForItAndSavesOnlyScreenFields() {
+        var requests = 0
+        var change: ((AppSettings) -> AppSettings)? = null
+        val event = ScheduledWorkout("event-ui", "2026-12-01", menu.id, menu.name, 19 * 60)
+        compose.setContent {
+            TsuzuToreApp(state().copy(notificationsAllowed = false), actions(onRequestPermission = { requests++ }, onSaveSettings = { change = it }))
+        }
+
+        compose.onNodeWithText("設定").performClick()
+        compose.onNodeWithContentDescription("習慣リマインド").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(1, requests) }
+        compose.onNodeWithText("設定を保存").performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = requireNotNull(change)(AppSettings(firstWeekEnabled = false, scheduledWorkouts = listOf(event)))
+            assertTrue(saved.reminderEnabled)
+            assertEquals(listOf(event), saved.scheduledWorkouts)
+        }
+    }
+
+    @Test fun scheduleDateAndTimeAreChosenWithPickersInsteadOfTyping() {
+        var saved: List<ScheduledWorkout>? = null
+        compose.setContent { TsuzuToreApp(state(), actions(onSaveSchedule = { saved = it })) }
+
+        compose.onNodeWithText("カレンダー").performClick()
+        compose.onNodeWithText("＋ 予定を追加").performScrollTo().performClick()
+        compose.onNodeWithText("時刻なし").assertExists()
+        compose.onNodeWithContentDescription("時刻を選ぶ").performClick()
+        compose.onNodeWithText("決定").performClick()
+        compose.onNodeWithText("19:00").assertExists()
+        compose.onNodeWithContentDescription("日付を変更").performClick()
+        compose.onNodeWithText("決定").performClick()
+        compose.onNodeWithText("保存").performClick()
+        compose.runOnIdle {
+            val event = requireNotNull(saved).single()
+            assertEquals(19 * 60, event.timeMinutes)
+            assertEquals(java.time.LocalDate.now().toString(), event.date)
+        }
+    }
+
     private fun actions(
         onQuickStart: (WorkoutPlan) -> Unit = {},
         onAdjust: (Int) -> Unit = {},
         onBegin: () -> Unit = {},
         onPause: () -> Unit = {},
+        onComplete: () -> Unit = {},
+        onCompleteWithReps: (Int) -> Unit = {},
+        onDelete: (String) -> Unit = {},
+        onRequestPermission: () -> Unit = {},
+        onSaveSettings: ((AppSettings) -> AppSettings) -> Unit = {},
+        onSaveSchedule: (List<ScheduledWorkout>) -> Unit = {},
     ) = AppUiActions(
         startWorkout = {},
         startQuickWorkout = onQuickStart,
-        saveSchedule = {},
+        saveSchedule = onSaveSchedule,
         adjustTime = onAdjust,
         selectExercise = {},
         beginSet = onBegin,
-        completeSet = {},
+        completeSet = onComplete,
         finishTimedSet = {},
         pauseResume = onPause,
         extendRest = {},
@@ -116,14 +198,16 @@ class TrainingUiTest {
         saveTemplate = {},
         deleteTemplate = {},
         reorderTemplates = {},
-        saveSettings = {},
+        saveSettings = onSaveSettings,
         previewCues = {},
-        requestNotificationPermission = {},
+        requestNotificationPermission = onRequestPermission,
         exportBackup = {},
         pickImport = {},
         confirmImport = {},
         cancelImport = {},
         dismissMessage = {},
         confirmForm = { _, _ -> },
+        completeSetWithReps = onCompleteWithReps,
+        deleteSession = onDelete,
     )
 }

@@ -124,6 +124,37 @@ class AppRepositoryTest {
         assertEquals(before, reload().exportBackup())
     }
 
+    @Test fun deletingAFinishedRecordRemovesItsResultsAndSnapshotButKeepsOthers() = runBlocking {
+        val template = repository.templates.first().first()
+        val plan = WorkoutPlan(template.id, template.name, listOf(template.exercises.first().copy(sets = 1)), warmupSeconds = 0)
+        val kept = TimerEngine { 0L }
+        kept.start(plan, "keep", 1000, "2026-10-19", "Asia/Tokyo")
+        kept.dispatch(TimerAction.StartSet)
+        repository.saveRun(kept.dispatch(TimerAction.CompleteSet, walltime = 2000))
+        val removed = TimerEngine { 0L }
+        removed.start(plan, "remove", 3000, "2026-10-20", "Asia/Tokyo")
+        removed.dispatch(TimerAction.StartSet)
+        repository.saveRun(removed.dispatch(TimerAction.CompleteSet, walltime = 4000))
+
+        repository.deleteSession("remove")
+
+        assertEquals(listOf("keep"), repository.sessions.first().map { it.id })
+        assertNull(repository.loadRun())
+        assertEquals(listOf("keep"), BackupCodec.decode(repository.exportBackup()).sessions.map { it.id })
+    }
+
+    @Test fun activeRecordCannotBeDeleted() = runBlocking {
+        val template = repository.templates.first().first()
+        val engine = TimerEngine { 0L }
+        repository.saveRun(engine.start(createPlan(template, AppSettings(), java.time.LocalDate.of(2026, 10, 20)), "active", 1000, "2026-10-20", "Asia/Tokyo"))
+        try {
+            repository.deleteSession("active")
+            fail("進行中の記録が削除されました")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(listOf("active"), repository.sessions.first().map { it.id })
+        assertTrue(repository.loadRun()!!.active)
+    }
+
     private class FailOnceStore(private val delegate: DataStore<Preferences>) : DataStore<Preferences> {
         var writesUntilFailure: Int = -1
         override val data get() = delegate.data

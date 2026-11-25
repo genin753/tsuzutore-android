@@ -31,6 +31,8 @@ data class AppUiState(
     val busy: Boolean = false,
     val message: String? = null,
     val importPreview: String? = null,
+    /** Whether the OS lets the app post notifications (reminders, running-timer notice). */
+    val notificationsAllowed: Boolean = true,
 )
 
 data class AppUiActions(
@@ -51,7 +53,8 @@ data class AppUiActions(
     val saveTemplate: (MenuTemplate) -> Unit,
     val deleteTemplate: (String) -> Unit,
     val reorderTemplates: (List<String>) -> Unit,
-    val saveSettings: (AppSettings) -> Unit,
+    /** Receives a change applied to the latest stored settings, never a stale full copy. */
+    val saveSettings: ((AppSettings) -> AppSettings) -> Unit,
     val previewCues: () -> Unit,
     val requestNotificationPermission: () -> Unit,
     val exportBackup: () -> Unit,
@@ -60,6 +63,11 @@ data class AppUiActions(
     val cancelImport: () -> Unit,
     val dismissMessage: () -> Unit,
     val confirmForm: (String, Boolean) -> Unit,
+    val completeSetWithReps: (Int) -> Unit = {},
+    val openNotificationSettings: () -> Unit = {},
+    val deleteSession: (String) -> Unit = {},
+    /** sessionId, resultId, reps (null clears the recorded count). */
+    val updateSetReps: (String, String, Int?) -> Unit = { _, _, _ -> },
 )
 
 @Composable
@@ -210,13 +218,20 @@ private fun NavGlyph(index: Int, color: Color, background: Color) {
                 drawCircle(color, 1.4f*s, p(4f,y))
                 drawLine(color, p(9f,y), p(21f,y), 1.8f*s)
             }
-            2, 3 -> {
-                drawRoundRect(color, p(3f,5f), Size(18*s,16*s), CornerRadius(2*s), style = stroke)
-                drawLine(color,p(3f,10f),p(21f,10f),1.8f*s)
-                drawLine(color,p(8f,2f),p(8f,7f),1.8f*s)
-                drawLine(color,p(16f,2f),p(16f,7f),1.8f*s)
-                drawLine(color,p(8f,15f),p(11f,18f),1.8f*s)
-                drawLine(color,p(11f,18f),p(17f,12f),1.8f*s)
+            2 -> {
+                drawRoundRect(color, p(3f, 5f), Size(18 * s, 16 * s), CornerRadius(2 * s), style = stroke)
+                drawLine(color, p(3f, 10f), p(21f, 10f), 1.8f * s)
+                drawLine(color, p(8f, 2f), p(8f, 7f), 1.8f * s)
+                drawLine(color, p(16f, 2f), p(16f, 7f), 1.8f * s)
+                drawLine(color, p(8f, 15f), p(11f, 18f), 1.8f * s)
+                drawLine(color, p(11f, 18f), p(17f, 12f), 1.8f * s)
+            }
+            3 -> {
+                // Records: a bar chart, so it never looks like the calendar tab.
+                drawLine(color, p(3f, 21f), p(21f, 21f), 1.8f * s)
+                drawRoundRect(color, p(5f, 12f), Size(3.5f * s, 7f * s), CornerRadius(1f * s), style = stroke)
+                drawRoundRect(color, p(10.25f, 4f), Size(3.5f * s, 15f * s), CornerRadius(1f * s), style = stroke)
+                drawRoundRect(color, p(15.5f, 8f), Size(3.5f * s, 11f * s), CornerRadius(1f * s), style = stroke)
             }
             else -> {
                 for ((y, x) in listOf(5f to 8f, 12f to 16f, 19f to 9f)) {

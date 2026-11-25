@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +19,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,9 +43,11 @@ internal fun ColumnScope.CalendarScreen(
     var deleting by remember { mutableStateOf<ScheduledWorkout?>(null) }
     val selected = LocalDate.parse(selectedDay)
     val month = YearMonth.parse(visibleMonth)
-    val schedule = sortedSchedule(state.settings.scheduledWorkouts)
-    val eventsByDay = schedule.groupBy { it.date }
-    val performedDays = state.sessions.filter { it.plan.kind == PlanKind.WORKOUT && it.wasPerformed() }.map { it.localDate }.toSet()
+    val schedule = remember(state.settings.scheduledWorkouts) { sortedSchedule(state.settings.scheduledWorkouts) }
+    val eventsByDay = remember(schedule) { schedule.groupBy { it.date } }
+    val performedDays = remember(state.sessions) {
+        state.sessions.filter { it.plan.kind == PlanKind.WORKOUT && it.wasPerformed() }.map { it.localDate }.toSet()
+    }
     val selectedEvents = eventsByDay[selectedDay].orEmpty()
     val selectedRecords = state.sessions.filter { it.localDate == selectedDay && it.wasPerformed() }.sortedBy { it.startedAt }
     val newEvent = {
@@ -232,17 +232,26 @@ private fun ScheduleEditor(
     var date by remember(event) { mutableStateOf(event?.date ?: initialDate) }
     var templateId by remember(event) { mutableStateOf(event?.templateId ?: templates.firstOrNull()?.id.orEmpty()) }
     var title by remember(event) { mutableStateOf(event?.title ?: templates.firstOrNull()?.name.orEmpty().take(100)) }
-    var time by remember(event) { mutableStateOf(event?.timeMinutes?.let { "%02d:%02d".format(it / 60, it % 60) }.orEmpty()) }
+    var timeMinutes by remember(event) { mutableStateOf(event?.timeMinutes) }
     var menuOpen by remember { mutableStateOf(false) }
+    var pickDate by remember { mutableStateOf(false) }
+    var pickTime by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val selectedTemplate = templates.find { it.id == templateId }
     val eventId = remember(event) { event?.id ?: UUID.randomUUID().toString() }
+    val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (event == null) "トレーニングの予定を追加" else "トレーニングの予定を編集") },
         text = {
             Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(date, { if (it.length <= 10) date = it }, label = { Text("日付") }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii), modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("日付", style = MaterialTheme.typography.labelLarge)
+                        Text(parsedDate?.format(DateTimeFormatter.ofPattern("yyyy年M月d日（E）", Locale.JAPANESE)) ?: date)
+                    }
+                    SubButton("変更", { pickDate = true }, Modifier.semantics { contentDescription = "日付を変更" })
+                }
                 Box(Modifier.fillMaxWidth()) {
                     SubButton(selectedTemplate?.name ?: "メニューを選ぶ", { menuOpen = true }, Modifier.fillMaxWidth(), templates.isNotEmpty())
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -252,19 +261,23 @@ private fun ScheduleEditor(
                     }
                 }
                 OutlinedTextField(title, { if (it.length <= 100) title = it }, label = { Text("予定名") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(time, { if (it.length <= 5) time = it }, label = { Text("時刻（任意）") }, placeholder = { Text("19:00") }, supportingText = { Text("空欄なら時刻なしで保存します") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii), modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("時刻（任意）", style = MaterialTheme.typography.labelLarge)
+                        Text(timeMinutes?.let { timeText(it / 60, it % 60) } ?: "時刻なし")
+                    }
+                    SubButton("選ぶ", { pickTime = true }, Modifier.semantics { contentDescription = "時刻を選ぶ" })
+                }
+                if (timeMinutes != null) {
+                    TextButton({ timeMinutes = null }, Modifier.heightIn(min = TtStyle.Target)) { Text("時刻なしにする") }
+                }
                 HelpText("当日はカレンダーの予定からトレーニングを開始できます。")
                 error?.let { Text(it, color = TtStyle.Red) }
             }
         },
         confirmButton = {
             TextButton(enabled = !busy, onClick = {
-                val timeValue = if (time.isBlank()) null else if (time.matches(Regex("\\d{2}:\\d{2}"))) {
-                    val hour = time.substringBefore(':').toInt()
-                    val minute = time.substringAfter(':').toInt()
-                    if (hour in 0..23 && minute in 0..59) hour * 60 + minute else -1
-                } else -1
-                val candidate = ScheduledWorkout(eventId, date, templateId, title.trim(), timeValue)
+                val candidate = ScheduledWorkout(eventId, date, templateId, title.trim(), timeMinutes)
                 error = when {
                     selectedTemplate == null -> "メニューを選んでください"
                     else -> validateSchedule(schedule.filterNot { it.id == eventId } + candidate).firstOrNull()
@@ -274,4 +287,17 @@ private fun ScheduleEditor(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
     )
+    if (pickDate) {
+        DatePickDialog(parsedDate ?: LocalDate.now(), { pickDate = false }) { picked ->
+            date = picked.toString()
+            pickDate = false
+        }
+    }
+    if (pickTime) {
+        val initial = timeMinutes ?: (19 * 60)
+        TimePickDialog("予定の時刻", initial / 60, initial % 60, { pickTime = false }) { hour, minute ->
+            timeMinutes = hour * 60 + minute
+            pickTime = false
+        }
+    }
 }

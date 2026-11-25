@@ -1,6 +1,7 @@
 package jp.tsuzutore.app.data
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -32,7 +33,7 @@ class AppRepository internal constructor(private val db: AppDatabase, private va
         context.applicationContext.tsuzutorePreferences,
     )
     private val dao = db.dao()
-    private val json = BackupCodec.json
+    private val json = StorageCodec.json
     private val writeMutex = Mutex()
     private val initializationMutex = Mutex()
     @Volatile private var initialized = false
@@ -110,15 +111,36 @@ class AppRepository internal constructor(private val db: AppDatabase, private va
         }
     }
 
-    /** A session, its set results and its runtime snapshot always commit together. */
-    suspend fun saveRun(state: RunState) {
+    /**
+     * A session, its set results and its runtime snapshot always commit together.
+     * [includeSession] = false is for clock-only checkpoints: results only change with a revision,
+     * which the caller saves in full, so rewriting them every few seconds would only make every
+     * history observer reload all records.
+     */
+    suspend fun saveRun(state: RunState, includeSession: Boolean = true) {
         ensureInitialized()
         writeMutex.withLock {
             db.withTransaction {
                 val previous = dao.runtime()?.let { json.decodeFromString<RunState>(it.payload) }
                 if (previous != null && previous.session?.id == state.session?.id && state.revision < previous.revision) return@withTransaction
-                state.session?.let { writeSession(it) }
+                if (includeSession) state.session?.let { writeSession(it) }
                 dao.upsertRuntime(RuntimeEntity(payload = json.encodeToString(state)))
+            }
+        }
+    }
+
+    /** Removes one record. Its finished runtime snapshot goes too, so it can never be restored. */
+    suspend fun deleteSession(sessionId: String) {
+        ensureInitialized()
+        writeMutex.withLock {
+            db.withTransaction {
+                val runtime = dao.runtime()?.let { json.decodeFromString<RunState>(it.payload) }
+                if (runtime != null && runtime.session?.id == sessionId) {
+                    require(!runtime.active) { "進行中のトレーニングは削除できません。終了してから削除してください。" }
+                    dao.deleteRuntime()
+                }
+                dao.deleteResults(sessionId)
+                dao.deleteSession(sessionId)
             }
         }
     }
@@ -213,8 +235,15 @@ class AppRepository internal constructor(private val db: AppDatabase, private va
         }
     }
 
-    private fun readSettings(prefs: Preferences): AppSettings = prefs[settingsKey]
-        ?.let { json.decodeFromString<AppSettings>(it) } ?: AppSettings()
+    /** Unreadable settings fall back to defaults instead of crashing every launch; the next save replaces them. */
+    private fun readSettings(prefs: Preferences): AppSettings = prefs[settingsKey]?.let { encoded ->
+        try {
+            json.decodeFromString<AppSettings>(encoded)
+        } catch (error: IllegalArgumentException) {
+            Log.w("TsuzuTore", "Stored settings are unreadable; using defaults", error)
+            AppSettings()
+        }
+    } ?: AppSettings()
 
     private suspend fun writeTemplate(template: MenuTemplate, position: Int) {
         dao.upsertTemplate(TemplateEntity(template.id, template.name, position))
