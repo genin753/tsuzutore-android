@@ -2,7 +2,7 @@
 
 自宅向けの「筋トレタイマー＋習慣化」Androidアプリです。日本語のKotlin／Jetpack Composeアプリで、登録、広告、課金、サーバー、有料APIを使いません。初回から全身メニューを利用できます。アプリの基本動作にネット接続は不要です。
 
-2026年11月25日の改善版（1.1.0）では、リマインドの通知許可、回数の任意記録、記録の削除・修正、動作の重さ、マナーモード中の合図、画面オフ時の合図の途切れ、保存データの互換性などを直しました。スマホが未接続のため、改善版の実機インストールと画面操作は未実施です。ビルド結果と検証範囲は、本書の「検証状況」と`VERIFICATION.md`に記載しています。
+2026年11月25日の改善版（1.1.0）では、リマインドの通知許可、回数の任意記録、記録の削除・修正、動作の重さ、マナーモード中の合図、画面オフ時の合図の途切れ、保存データの互換性などを直しました。同日のデザイン刷新版（1.2.0）では、見た目をGoogleのMaterial Design 3を土台に作り直し、Android 12以降は端末の壁紙の色に合わせるようにしました（詳しくは「デザイン」）。スマホが未接続のため、どちらも実機インストールと画面操作は未実施です。ビルド結果と検証範囲は、本書の「検証状況」と`VERIFICATION.md`に記載しています。
 
 PC上で画面とタイマーを操作できるデバッグ版も追加しました。この作業フォルダーでは **run-pc-debug.cmd をダブルクリック**して起動します。Android版の実際のCompose画面とTimerEngineを共有し、PC専用のデータを使います。詳しい手順は[PC-DEBUG.md](PC-DEBUG.md)に記載しています。
 
@@ -31,7 +31,7 @@ PC上で画面とタイマーを操作できるデバッグ版も追加しまし
 | 項目 | バージョン／値 |
 | --- | --- |
 | applicationId／名前空間 | `jp.tsuzutore.app` |
-| バージョン | `1.1.0` / versionCode `2` |
+| バージョン | `1.2.0` / versionCode `3` |
 | minSdk | 26（Android 8.0） |
 | compileSdk / targetSdk | 36 / 36 |
 | Android Build Tools | 36.0.0 |
@@ -60,7 +60,7 @@ PC版は`pc-debug/`の独立したGradleプロジェクトです。Compose Multi
 
 PCの設定・メニュー・予定・記録は`.tooling/pc-debug-data/state.json`に保存し、スマホとは別に管理します。スマホの記録を自動で読み書きすることはありません。`run-pc-debug.cmd -Debug`で起動すると、Android StudioのRemote JVM Debugから`localhost:5005`へ接続して共有ソースのブレークポイントを使えます。起動・ログ・詳細手順は[PC-DEBUG.md](PC-DEBUG.md)を参照してください。
 
-起動スクリプトで「つづトレ — PCデバッグ」の実ウィンドウが生成され、PC専用JSONへ保存できることを確認しました。PC版のテストは改善版で**17件成功、失敗・エラー0件**です。内訳はDesktopController 3件、DesktopStore 6件、共有Compose UI 8件です。ホームとカレンダーはCompose自身が出力した画像を目視確認しました。テストレポートは`pc-debug/build/reports/tests/test/index.html`、画像は`pc-debug/build/reports/pc-ui/`にあります。Android端末での確認範囲は後述の記録と区別しています。
+起動スクリプトで「つづトレ — PCデバッグ」の実ウィンドウが生成され、PC専用JSONへ保存できることを確認しました。PC版のテストはデザイン刷新版（1.2.0）で**20件成功、失敗・エラー0件**です。内訳はDesktopController 3件、DesktopStore 6件、共有Compose UI 8件、デザイン確認用の画面書き出し3件です。書き出した主な画面（ライト・ダーク・壁紙の色の例）は目視で確認しました。テストレポートは`pc-debug/build/reports/tests/test/index.html`、画像は`pc-debug/build/reports/pc-ui/design/`にあります。Android端末での確認範囲は後述の記録と区別しています。
 
 ## Windowsで開く・ビルドする
 
@@ -116,7 +116,7 @@ debug用の秘密鍵は初回ビルド時にJDKの`keytool`で`.tooling/debug.ke
 
 **別の秘密鍵で再ビルドしたAPKでは、既存アプリへ上書き更新できません。** 鍵は`.tooling/debug.keystore`の1か所にしかないため、USBメモリやクラウドなど別の場所にもコピーしておいてください。鍵がなくなってビルド時に新しい鍵が作られた場合は、ビルドログに警告が出ます。鍵が異なる場合は、アプリ内からJSONを保存してから既存アプリをアンインストールし、新APKをインストールしてJSONを取り込みます。アンインストールすると端末内のアプリデータは消えます。
 
-versionCodeは1.1.0で`2`に上げました。古い版のAPK（versionCode 1）を新しい版の上に誤って入れることはできません。次に配布するときも、versionCodeを1つ以上上げてください。
+versionCodeは1.1.0で`2`、デザイン刷新版の1.2.0で`3`に上げました。古い版のAPKを新しい版の上に誤って入れることはできません。次に配布するときも、versionCodeを1つ以上上げてください。
 
 ## WindowsからGalaxyへインストール
 
@@ -216,11 +216,21 @@ Foreground ServiceとWakeLockでも、強制停止、メーカー固有の省電
 
 ## デザイン
 
-[GOLD’S GYM](https://www.goldsgym.jp/)の大きな英字見出しと黄色、[Nike](https://www.nike.com/jp/)の太いタイポグラフィと余白、[shadcn/ui](https://ui.shadcn.com/)のシンプルな境界線や部品構成を参考にした、ネイティブComposeのスポーツデザインです。
+デザインシステムは、Googleの[Material Design 3](https://m3.material.io/)（2025年のExpressive版）を土台にしています。Androidの他のアプリと操作感がそろい、ライト／ダークの両方で読みやすさの基準を満たす色の組み合わせになります。
 
-黒・鮮やかな黄色・温かい白を基本に、ホームに「トレーニングを開始」を配置し、大きな「TIMER」、黒い計測パネル、黄色の開始・完了ボタンを使っています。開始時とセット間には種目の一覧から好きな種目を選べます。計測パネルの±10秒ボタンで、画面を移動せず残り時間を調整できます。カレンダーは月表示から日付を選び、予定の登録や当日のメニュー開始へ進めます。記録・設定・メニューにも太い英字見出しを使い、下部ナビゲーションとアプリアイコンも配色を統一しています。
+| 要素 | 内容 |
+| --- | --- |
+| 色 | Android 12以降は端末の壁紙から色を作る「Material You（ダイナミックカラー）」を使います。Android 11以前とPC版は、種色 #2E9E5B（Vibrant）からGoogleの[material-color-utilities](https://github.com/material-foundation/material-color-utilities)で生成したブランド配色（緑）を使います。ライト／ダークは端末の設定に合わせて切り替わります |
+| 形 | Material 3 Expressiveの角丸スケール（4・8・12・16・20・28・32・48dp、完全な丸）。値はCompose Material3 1.4の`ShapeTokens`と同じです。ボタンは丸いピル型、カードは20〜28dpの大きな角丸です |
+| 文字 | Material 3のタイプスケールを使い、日本語の本文は行の高さを文字サイズの150%以上にしています（デジタル庁デザインシステムの基準）。英字用の字間は付けず、見出しは太めの強調スタイルです。タイマーの数字は桁ずれしない等幅数字です |
+| アイコン | Googleの[Material Symbols](https://github.com/google/material-design-icons)（Rounded、Apache License 2.0）から、使う40個のパスだけを`ui/Symbols.kt`に収録しています。アイコン用ライブラリは追加していません |
+| アプリアイコン | Material Symbolsの「timer」を使ったアダプティブアイコンです。Android 13以降の「テーマアイコン」では壁紙の色に合わせて表示されます |
 
-`ui/Theme.kt`の`TtStyle`に色・余白・6dpの角丸・主要ボタンの最小52dpの操作領域を集約しています。英字と数字は端末内のcondensedフォントを使います。日本語の操作名、スクロール、TalkBackの状態説明、文字拡大に合わせたタイマーの幅調整を維持しています。毎セットの回数・負荷の入力は不要です。
+ホームは大きな角丸カードに今日のメニューと「トレーニングを開始」を置き、今週の実施日を丸いチップで表示します。タイマーは残り時間を円形のリングで表示し、リングは1秒ごとの更新の間もなめらかに減ります。開始・完了・再開などの主な操作は高さ72dpの大きなボタン、±10秒は丸いボタンです。下部ナビゲーションはMaterial 3のNavigationBarで、選択中のタブは塗りつぶしアイコンになります。
+
+色・形・文字・部品は`ui/Theme.kt`にまとめています（`BrandLight`・`BrandDark`、`TtShapes`、`TtSpace`、`MainButton`など）。操作領域は最小48dpです。日本語の操作名、スクロール、TalkBackの状態説明、文字拡大に合わせたタイマーの文字サイズ調整を維持しています。毎セットの回数・負荷の入力は不要です。
+
+PC版のテストでは、主な画面をスマホと同じ大きさ（412×892dp）で画像に書き出します。ライト／ダークに加えて、壁紙の色の例（青・オレンジ）でも描画し、`pc-debug/build/reports/pc-ui/design/`に保存します。
 
 ## 検証状況
 
@@ -329,5 +339,9 @@ Galaxyの省電力ON／OFF、アプリのバックグラウンド制限、通知
 - [adb](https://developer.android.com/tools/adb)
 - [Android Gradle Plugin 8.13](https://developer.android.com/build/releases/agp-8-13-0-release-notes)
 - [Compose BOM](https://developer.android.com/develop/ui/compose/bom)
+- [Material Design 3](https://m3.material.io/)
+- [Material Design 3 in Compose](https://developer.android.com/develop/ui/compose/designsystems/material3)
+- [material-color-utilities](https://github.com/material-foundation/material-color-utilities)
+- [Material Symbols](https://github.com/google/material-design-icons)
 - [デジタル庁デザインシステム](https://design.digital.go.jp/dads/)
 - [アプリ専用デザインシステムの定義方針](https://design.digital.go.jp/dads/guidance/local-design-system/)

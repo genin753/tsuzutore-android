@@ -39,8 +39,8 @@ class DesktopUiTest {
         val priorRun = RunState(completed, TimerStage.COMPLETED)
         compose.setContent { TsuzuToreApp(state(priorRun), actions()) }
 
-        compose.onNodeWithText("トレーニングを開始  →").assertIsDisplayed()
-        compose.onNodeWithText("FINISH").assertDoesNotExist()
+        compose.onNodeWithText("トレーニングを開始").assertIsDisplayed()
+        compose.onNodeWithText("ホームに戻る").assertDoesNotExist()
         saveOwnRootScreenshot("home.png")
     }
 
@@ -48,7 +48,7 @@ class DesktopUiTest {
         var started: WorkoutPlan? = null
         compose.setContent { TsuzuToreApp(state(), actions(onQuickStart = { started = it })) }
 
-        compose.onNodeWithText("トレーニングを開始  →").performClick()
+        compose.onNodeWithText("トレーニングを開始").performClick()
         compose.onNodeWithText("始める種目をタップ").assertIsDisplayed()
         compose.onNodeWithText(plank.name).performScrollTo().performClick()
 
@@ -65,12 +65,12 @@ class DesktopUiTest {
         compose.setContent { TsuzuToreApp(state(), actions()) }
 
         compose.onNodeWithText("カレンダー").performClick()
-        compose.onNodeWithText("CALENDAR").assertIsDisplayed()
+        compose.onNodeWithText("トレーニングの予定").assertIsDisplayed()
         compose.onNodeWithContentDescription("次の月").performClick()
         val nextMonth = YearMonth.now().plusMonths(1)
         compose.onNodeWithText("${nextMonth.year}年 ${nextMonth.monthValue}月").assertIsDisplayed()
         saveOwnRootScreenshot("calendar.png")
-        compose.onNodeWithText("＋ 予定を追加").performScrollTo().performClick()
+        compose.onNodeWithText("予定を追加").performScrollTo().performClick()
 
         compose.onNodeWithText("トレーニングの予定を追加").assertIsDisplayed()
         compose.onNodeWithText("保存").assertIsEnabled()
@@ -161,7 +161,7 @@ class DesktopUiTest {
         compose.setContent { TsuzuToreApp(state(), actions(onSaveSchedule = { saved = it })) }
 
         compose.onNodeWithText("カレンダー").performClick()
-        compose.onNodeWithText("＋ 予定を追加").performScrollTo().performClick()
+        compose.onNodeWithText("予定を追加").performScrollTo().performClick()
         compose.onNodeWithText("時刻なし").assertExists()
         compose.onNodeWithContentDescription("時刻を選ぶ").performClick()
         compose.onNodeWithText("決定").performClick()

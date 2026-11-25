@@ -1,10 +1,12 @@
 package jp.tsuzutore.app.ui
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.font.FontFamily
 import java.util.UUID
 
-internal fun platformSportFont(): FontFamily = FontFamily.SansSerif
+/** The desktop has no wallpaper colors; the brand scheme is used. */
+@Composable
+internal fun platformDynamicColorScheme(dark: Boolean): ColorScheme? = null
 
 internal object DesktopBackDispatcher {
     private val callbacks = linkedMapOf<String, () -> Unit>()

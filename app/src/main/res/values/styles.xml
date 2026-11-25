@@ -1,9 +1,10 @@
 <resources>
+    <!-- Launch window only; Compose draws the Material 3 theme (wallpaper or brand colors) on top. -->
     <style name="Theme.TsuzuTore" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#FFDC32</item>
-        <item name="android:windowBackground">#F5F5F2</item>
+        <item name="android:colorAccent">#006D38</item>
+        <item name="android:windowBackground">#F1FDEF</item>
     </style>
 </resources>

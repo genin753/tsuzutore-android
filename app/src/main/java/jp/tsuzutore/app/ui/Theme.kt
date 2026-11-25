@@ -1,230 +1,336 @@
 package jp.tsuzutore.app.ui
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Locale
+import jp.tsuzutore.app.domain.Exercise
+import jp.tsuzutore.app.domain.ExerciseMode
 
-/** High-contrast training style with clear Japanese labels and generous touch targets. */
-object TtStyle {
-    val Ink = Color(0xFF111111)
-    val Dark = Ink
-    val LightInk = Color(0xFFF5F5F2)
-    val Accent = Color(0xFFFFDC32)
-    val OnAccent = Ink
-    val AccentLight = Color(0xFFFFF5BF)
-    val Muted = Color(0xFF5C5C57)
-    val Background = LightInk
-    val Border = Color(0xFFD6D6D1)
-    val Green = Color(0xFF145C37)
-    val GreenLight = Color(0xFFE4F0E7)
-    val Amber = Color(0xFF755200)
-    val AmberLight = Color(0xFFFFF1C7)
-    val Red = Color(0xFFAA251B)
+/*
+ * Design system: Material Design 3 (Expressive, 2025) — https://m3.material.io
+ *
+ * Color  Android 12+ uses the colors of the user's wallpaper (dynamic color). Elsewhere the brand
+ *        scheme below is used; it is generated from seed #2E9E5B (Vibrant variant) with Google's
+ *        material-color-utilities, so every role keeps the M3 contrast guarantees in light and dark.
+ * Shape  The M3 Expressive corner scale, as defined by androidx.compose.material3 1.4 ShapeTokens.
+ * Type   The M3 type scale. Japanese body text gets a line height of at least 150% (Digital Agency
+ *        Design System guideline) and no Latin letter spacing; headlines use emphasized weights.
+ */
 
-    // Existing screens use Blue for foreground text as well as fills.
-    val Blue = Ink
-    val BlueLight = AccentLight
+internal val BrandLight = lightColorScheme(
+    primary = Color(0xFF006D38),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFF5FFF9B),
+    onPrimaryContainer = Color(0xFF005229),
+    inversePrimary = Color(0xFF00E47B),
+    secondary = Color(0xFF3E6656),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFC0ECD7),
+    onSecondaryContainer = Color(0xFF264E3F),
+    tertiary = Color(0xFF1E695F),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFA9F0E3),
+    onTertiaryContainer = Color(0xFF005048),
+    background = Color(0xFFF1FDEF),
+    onBackground = Color(0xFF141E16),
+    surface = Color(0xFFF1FDEF),
+    onSurface = Color(0xFF141E16),
+    surfaceVariant = Color(0xFFD8E6D7),
+    onSurfaceVariant = Color(0xFF3D4A3F),
+    surfaceTint = Color(0xFF006D38),
+    inverseSurface = Color(0xFF29332A),
+    inverseOnSurface = Color(0xFFE9F4E7),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF93000A),
+    outline = Color(0xFF6D7B6E),
+    outlineVariant = Color(0xFFBCCABB),
+    scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFFF1FDEF),
+    surfaceContainer = Color(0xFFE6F1E4),
+    surfaceContainerHigh = Color(0xFFE0EBDE),
+    surfaceContainerHighest = Color(0xFFDAE6D9),
+    surfaceContainerLow = Color(0xFFEBF7EA),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceDim = Color(0xFFD2DDD0),
+)
 
-    val SportFont = platformSportFont()
-    val Space = 16.dp
-    val Radius = 6.dp
-    val Target = 52.dp
+internal val BrandDark = darkColorScheme(
+    primary = Color(0xFF00E47B),
+    onPrimary = Color(0xFF00391A),
+    primaryContainer = Color(0xFF005229),
+    onPrimaryContainer = Color(0xFF5FFF9B),
+    inversePrimary = Color(0xFF006D38),
+    secondary = Color(0xFFA4D0BC),
+    onSecondary = Color(0xFF0C3729),
+    secondaryContainer = Color(0xFF264E3F),
+    onSecondaryContainer = Color(0xFFC0ECD7),
+    tertiary = Color(0xFF8DD4C7),
+    onTertiary = Color(0xFF003731),
+    tertiaryContainer = Color(0xFF005048),
+    onTertiaryContainer = Color(0xFFA9F0E3),
+    background = Color(0xFF0C160E),
+    onBackground = Color(0xFFDAE6D9),
+    surface = Color(0xFF0C160E),
+    onSurface = Color(0xFFDAE6D9),
+    surfaceVariant = Color(0xFF3D4A3F),
+    onSurfaceVariant = Color(0xFFBCCABB),
+    surfaceTint = Color(0xFF00E47B),
+    inverseSurface = Color(0xFFDAE6D9),
+    inverseOnSurface = Color(0xFF29332A),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+    outline = Color(0xFF869487),
+    outlineVariant = Color(0xFF3D4A3F),
+    scrim = Color(0xFF000000),
+    surfaceBright = Color(0xFF323C33),
+    surfaceContainer = Color(0xFF18221A),
+    surfaceContainerHigh = Color(0xFF222C24),
+    surfaceContainerHighest = Color(0xFF2D372E),
+    surfaceContainerLow = Color(0xFF141E16),
+    surfaceContainerLowest = Color(0xFF071009),
+    surfaceDim = Color(0xFF0C160E),
+)
+
+/** The M3 Expressive corner scale. */
+internal object TtShapes {
+    val ExtraSmall = RoundedCornerShape(4.dp)
+    val Small = RoundedCornerShape(8.dp)
+    val Medium = RoundedCornerShape(12.dp)
+    val Large = RoundedCornerShape(16.dp)
+    val LargeIncreased = RoundedCornerShape(20.dp)
+    val ExtraLarge = RoundedCornerShape(28.dp)
+    val ExtraLargeIncreased = RoundedCornerShape(32.dp)
+    val ExtraExtraLarge = RoundedCornerShape(48.dp)
+    val Full = CircleShape
 }
+
+/** Spacing on the 4dp grid. */
+internal object TtSpace {
+    val XSmall = 4.dp
+    val Small = 8.dp
+    val Medium = 12.dp
+    val Large = 16.dp
+    val XLarge = 24.dp
+    val XXLarge = 32.dp
+}
+
+/** M3 minimum touch target, and the heights of the M3 Expressive medium and large buttons. */
+internal val MinTouchTarget = 48.dp
+internal val ButtonHeight = 56.dp
+internal val LargeButtonHeight = 72.dp
+
+/** Replace the wallpaper/brand colors or force light/dark, for previews and screenshot tests. */
+internal val LocalColorSchemeOverride = staticCompositionLocalOf<ColorScheme?> { null }
+internal val LocalDarkThemeOverride = staticCompositionLocalOf<Boolean?> { null }
+
+private val Emphasized = FontWeight.Bold
+
+private val TtTypography = Typography(
+    displayLarge = TextStyle(fontSize = 57.sp, lineHeight = 64.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
+    displayMedium = TextStyle(fontSize = 45.sp, lineHeight = 52.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
+    displaySmall = TextStyle(fontSize = 36.sp, lineHeight = 44.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
+    headlineLarge = TextStyle(fontSize = 32.sp, lineHeight = 44.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
+    headlineMedium = TextStyle(fontSize = 28.sp, lineHeight = 38.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
+    headlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 34.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
+    titleLarge = TextStyle(fontSize = 22.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+    titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 26.sp, letterSpacing = 0.sp),
+    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 22.sp, letterSpacing = 0.sp),
+    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = 0.sp),
+    labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+    labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+    labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
+)
+
+/** Tabular digits, so a running timer does not shift sideways as numbers change. */
+internal val TimerDigits = TextStyle(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum", letterSpacing = 0.sp)
 
 @Composable
 fun TsuzuToreTheme(content: @Composable () -> Unit) {
+    val dark = LocalDarkThemeOverride.current ?: isSystemInDarkTheme()
+    val colors = LocalColorSchemeOverride.current ?: platformDynamicColorScheme(dark) ?: if (dark) BrandDark else BrandLight
     MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = TtStyle.Ink,
-            onPrimary = Color.White,
-            primaryContainer = TtStyle.Accent,
-            onPrimaryContainer = TtStyle.OnAccent,
-            secondary = TtStyle.Ink,
-            onSecondary = Color.White,
-            secondaryContainer = TtStyle.AccentLight,
-            onSecondaryContainer = TtStyle.Ink,
-            tertiary = TtStyle.Green,
-            onTertiary = Color.White,
-            tertiaryContainer = TtStyle.GreenLight,
-            onTertiaryContainer = TtStyle.Green,
-            background = TtStyle.Background,
-            onBackground = TtStyle.Ink,
-            surface = Color.White,
-            onSurface = TtStyle.Ink,
-            surfaceVariant = Color(0xFFEEEDE7),
-            onSurfaceVariant = TtStyle.Muted,
-            surfaceTint = Color.Transparent,
-            outline = Color(0xFF777770),
-            outlineVariant = TtStyle.Border,
-            inverseSurface = TtStyle.Dark,
-            inverseOnSurface = TtStyle.LightInk,
-            inversePrimary = TtStyle.Accent,
-            error = TtStyle.Red,
-            onError = Color.White,
-            errorContainer = Color(0xFFFCE5E0),
-            onErrorContainer = TtStyle.Red,
-        ),
-        typography = Typography(
-            displayLarge = TextStyle(fontFamily = TtStyle.SportFont, fontSize = 64.sp, lineHeight = 68.sp, fontWeight = FontWeight.Black, letterSpacing = (-1).sp),
-            displayMedium = TextStyle(fontFamily = TtStyle.SportFont, fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-            displaySmall = TextStyle(fontFamily = TtStyle.SportFont, fontSize = 40.sp, lineHeight = 44.sp, fontWeight = FontWeight.Bold),
-            headlineLarge = TextStyle(fontSize = 30.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold),
-            headlineMedium = TextStyle(fontSize = 26.sp, lineHeight = 36.sp, fontWeight = FontWeight.ExtraBold),
-            headlineSmall = TextStyle(fontSize = 23.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold),
-            titleLarge = TextStyle(fontSize = 21.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold),
-            titleMedium = TextStyle(fontSize = 18.sp, lineHeight = 27.sp, fontWeight = FontWeight.Bold),
-            titleSmall = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold),
-            bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 25.sp),
-            bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 22.sp),
-            bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 19.sp),
-            labelLarge = TextStyle(fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold),
-            labelMedium = TextStyle(fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold),
-            labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold),
-        ),
+        colorScheme = colors,
+        typography = TtTypography,
         shapes = Shapes(
-            extraSmall = RoundedCornerShape(4.dp),
-            small = RoundedCornerShape(6.dp),
-            medium = RoundedCornerShape(TtStyle.Radius),
-            large = RoundedCornerShape(8.dp),
-            extraLarge = RoundedCornerShape(8.dp),
+            extraSmall = TtShapes.ExtraSmall,
+            small = TtShapes.Small,
+            medium = TtShapes.Medium,
+            large = TtShapes.Large,
+            extraLarge = TtShapes.ExtraLarge,
         ),
         content = content,
     )
 }
 
+/** A filled M3 card: tinted container, no border, generous corners. */
 @Composable
 internal fun TtCard(
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surface,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    shape: Shape = TtShapes.LargeIncreased,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(TtStyle.Radius),
-        color = containerColor,
-        border = BorderStroke(1.dp, TtStyle.Border),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-    ) {
-        Column(Modifier.padding(TtStyle.Space), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    Surface(modifier = modifier, shape = shape, color = containerColor, contentColor = contentColorFor(containerColor)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(TtSpace.Medium), content = content)
     }
 }
 
+/** Primary action: filled, pill-shaped, M3 Expressive medium height. */
 @Composable
-internal fun MainButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+internal fun MainButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    height: Dp = ButtonHeight,
+) {
     Button(
         onClick = onClick,
-        modifier = modifier.heightIn(min = TtStyle.Target),
+        modifier = modifier.heightIn(min = height),
         enabled = enabled,
-        shape = RoundedCornerShape(TtStyle.Radius),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = TtStyle.Accent,
-            contentColor = TtStyle.OnAccent,
-            disabledContainerColor = Color(0xFFE8E8E1),
-            disabledContentColor = Color(0xFF6A6A62),
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 15.dp),
-    ) {
-        Text(text, style = MaterialTheme.typography.labelLarge)
-    }
+        shape = TtShapes.Full,
+        contentPadding = PaddingValues(horizontal = TtSpace.XLarge, vertical = TtSpace.Medium),
+    ) { ButtonLabel(text, icon) }
 }
 
+/** Secondary action: filled tonal, pill-shaped. */
 @Composable
-internal fun SubButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+internal fun SubButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = MinTouchTarget),
+        enabled = enabled,
+        shape = TtShapes.Full,
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+    ) { ButtonLabel(text, icon) }
+}
+
+/** Low-emphasis action with an outline. */
+@Composable
+internal fun OutlineAction(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = TtStyle.Target),
+        modifier = modifier.heightIn(min = MinTouchTarget),
         enabled = enabled,
-        shape = RoundedCornerShape(TtStyle.Radius),
-        border = BorderStroke(1.dp, if (enabled) TtStyle.Ink else TtStyle.Border),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = TtStyle.Ink, disabledContentColor = TtStyle.Muted),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-    ) {
-        Text(text, style = MaterialTheme.typography.labelLarge)
-    }
+        shape = TtShapes.Full,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+    ) { ButtonLabel(text, icon) }
 }
 
 @Composable
-internal fun SportHeading(
-    english: String,
-    japanese: String,
+private fun ButtonLabel(text: String, icon: ImageVector?) {
+    if (icon != null) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(TtSpace.Small))
+    }
+    Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp))
+}
+
+/** Large page title, as in an M3 large top app bar. */
+@Composable
+internal fun PageHeader(title: String, subtitle: String? = null, trailing: (@Composable RowScope.() -> Unit)? = null) {
+    Column(Modifier.fillMaxWidth().padding(top = TtSpace.Small), verticalArrangement = Arrangement.spacedBy(TtSpace.XSmall)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f).semantics { heading() })
+            trailing?.invoke(this)
+        }
+        if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Kept for existing callers: a page title with an optional description. */
+@Composable
+internal fun PageTitle(title: String, description: String? = null) = PageHeader(title, description)
+
+@Composable
+internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
+    Text(text, style = MaterialTheme.typography.titleMedium, modifier = modifier.semantics { heading() })
+}
+
+@Composable
+internal fun HelpText(text: String) = Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+
+/** Small pill label for states such as "運動中" or "完了". */
+@Composable
+internal fun StatusPill(
+    text: String,
     modifier: Modifier = Modifier,
-    dark: Boolean = false,
-    subtitle: String? = null,
+    container: Color = MaterialTheme.colorScheme.secondaryContainer,
+    icon: ImageVector? = null,
 ) {
-    val foreground = if (dark) TtStyle.LightInk else TtStyle.Ink
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.width(8.dp).height(48.dp).background(TtStyle.Accent))
-            Text(
-                english.uppercase(Locale.ROOT),
-                modifier = Modifier.weight(1f),
-                color = foreground,
-                fontFamily = TtStyle.SportFont,
-                fontWeight = FontWeight.Black,
-                fontSize = 60.sp,
-                lineHeight = 64.sp,
-                letterSpacing = (-0.8).sp,
-            )
-        }
-        Text(
-            japanese,
-            color = foreground,
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.semantics { heading() },
-        )
-        if (subtitle != null) {
-            Text(
-                subtitle,
-                color = if (dark) Color(0xFFC9C9C1) else TtStyle.Muted,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+    Surface(modifier = modifier, shape = TtShapes.Full, color = container, contentColor = contentColorFor(container)) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(text, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
 
+/** An icon inside a filled circle, used to lead list rows and cards. */
 @Composable
-internal fun PageTitle(title: String, description: String? = null) {
-    val english = when (title) {
-        "記録" -> "RECORD"
-        "設定" -> "SETTINGS"
-        "メニュー" -> "MENU"
-        "運動と休憩を繰り返す" -> "INTERVAL"
-        else -> null
-    }
-    if (english != null) {
-        SportHeading(english, title, subtitle = description)
-    } else {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.width(40.dp).height(4.dp).background(TtStyle.Accent))
-            Text(title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-            if (description != null) Text(description, color = TtStyle.Muted, style = MaterialTheme.typography.bodyMedium)
-        }
+internal fun IconBadge(
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    container: Color = MaterialTheme.colorScheme.secondaryContainer,
+    size: Dp = 40.dp,
+) {
+    Surface(modifier = modifier.size(size), shape = TtShapes.Full, color = container, contentColor = contentColorFor(container)) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, modifier = Modifier.size(size * 0.55f)) }
     }
 }
 
+/** Page container shared by the editor-style pages: back button, title, then content. */
 @Composable
-internal fun HelpText(text: String) = Text(text, color = TtStyle.Muted, style = MaterialTheme.typography.bodyMedium)
+internal fun BackTitle(title: String, back: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(back, Modifier.size(MinTouchTarget)) { Icon(Symbols.ArrowBack, contentDescription = "戻る") }
+        Spacer(Modifier.width(TtSpace.XSmall))
+        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
+    }
+}
 
 internal fun clockText(ms: Long): String {
     val seconds = displaySeconds(ms)
     return "%02d:%02d".format(seconds / 60, seconds % 60)
 }
 
-internal fun targetText(exercise: jp.tsuzutore.app.domain.Exercise): String =
-    if (exercise.mode == jp.tsuzutore.app.domain.ExerciseMode.REPS) "${exercise.targetMin}〜${exercise.targetMax}回" else "${exercise.targetSeconds}秒"
+internal fun targetText(exercise: Exercise): String =
+    if (exercise.mode == ExerciseMode.REPS) "${exercise.targetMin}〜${exercise.targetMax}回" else "${exercise.targetSeconds}秒"

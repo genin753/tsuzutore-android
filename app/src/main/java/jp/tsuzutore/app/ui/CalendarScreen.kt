@@ -1,27 +1,23 @@
 package jp.tsuzutore.app.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import jp.tsuzutore.app.domain.*
 import java.time.LocalDate
 import java.time.YearMonth
@@ -35,6 +31,7 @@ internal fun ColumnScope.CalendarScreen(
     onSaveSchedule: (List<ScheduledWorkout>) -> Unit,
     onStart: (MenuTemplate) -> Unit,
 ) {
+    val colors = MaterialTheme.colorScheme
     val today = rememberToday()
     var selectedDay by rememberSaveable { mutableStateOf(today.toString()) }
     var visibleMonth by rememberSaveable { mutableStateOf(YearMonth.from(today).toString()) }
@@ -50,44 +47,42 @@ internal fun ColumnScope.CalendarScreen(
     }
     val selectedEvents = eventsByDay[selectedDay].orEmpty()
     val selectedRecords = state.sessions.filter { it.localDate == selectedDay && it.wasPerformed() }.sortedBy { it.startedAt }
-    val newEvent = {
-        editing = null
-        showEditor = true
-    }
 
-    SportHeading("CALENDAR", "トレーニングの予定")
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    PageHeader("カレンダー", "トレーニングの予定")
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("${month.year}年 ${month.monthValue}月", style = MaterialTheme.typography.headlineSmall)
+            Text("${month.year}年 ${month.monthValue}月", style = MaterialTheme.typography.titleLarge)
             HelpText("${schedule.count { it.date.startsWith(month.toString() + "-") }}件の予定")
         }
         TextButton(onClick = {
             selectedDay = today.toString()
             visibleMonth = YearMonth.from(today).toString()
-        }, modifier = Modifier.heightIn(min = 48.dp)) { Text("今日") }
-        OutlinedButton(onClick = { visibleMonth = month.minusMonths(1).toString() }, modifier = Modifier.size(48.dp).semantics { contentDescription = "前の月" }, contentPadding = PaddingValues(0.dp)) { Text("‹", fontSize = 26.sp) }
-        OutlinedButton(onClick = { visibleMonth = month.plusMonths(1).toString() }, modifier = Modifier.size(48.dp).semantics { contentDescription = "次の月" }, contentPadding = PaddingValues(0.dp)) { Text("›", fontSize = 26.sp) }
+        }, modifier = Modifier.heightIn(min = MinTouchTarget)) { Text("今日") }
+        IconButton({ visibleMonth = month.minusMonths(1).toString() }) { Icon(Symbols.ChevronLeft, contentDescription = "前の月") }
+        IconButton({ visibleMonth = month.plusMonths(1).toString() }) { Icon(Symbols.ChevronRight, contentDescription = "次の月") }
     }
 
-    Surface(shape = RoundedCornerShape(TtStyle.Radius), color = Color.White, border = BorderStroke(1.dp, TtStyle.Border)) {
-        Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    TtCard(Modifier.fillMaxWidth(), containerColor = colors.surfaceContainerLow) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth()) {
-                listOf("月", "火", "水", "木", "金", "土", "日").forEachIndexed { index, label ->
-                    Text(label, Modifier.weight(1f).padding(vertical = 6.dp), textAlign = TextAlign.Center, color = if (index == 6) TtStyle.Red else TtStyle.Muted, style = MaterialTheme.typography.labelMedium)
+                weekdayLabels.forEachIndexed { index, label ->
+                    Text(
+                        label,
+                        Modifier.weight(1f).padding(vertical = TtSpace.XSmall),
+                        textAlign = TextAlign.Center,
+                        color = if (index == 6) colors.error else colors.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                 }
             }
             monthCalendarDates(month).chunked(7).forEach { week ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth()) {
                     week.forEach { date ->
                         val key = date.toString()
                         val currentMonth = YearMonth.from(date) == month
-                        val count = eventsByDay[key]?.size ?: 0
-                        val performed = key in performedDays
-                        val recurring = date.dayOfWeek.value in state.settings.plannedDays
                         CalendarDay(
                             date, key == selectedDay, date == today, currentMonth,
-                            count, performed, recurring,
-                            Modifier.weight(1f),
+                            eventsByDay[key]?.size ?: 0, key in performedDays, date.dayOfWeek.value in state.settings.plannedDays,
                         ) {
                             selectedDay = key
                             if (!currentMonth) visibleMonth = YearMonth.from(date).toString()
@@ -97,53 +92,87 @@ internal fun ColumnScope.CalendarScreen(
             }
         }
     }
-    HelpText("● 予定　✓ 実施済み　薄黄：毎週の予定曜日")
-
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(selected.format(DateTimeFormatter.ofPattern("M月d日（E）", Locale.JAPANESE)), style = MaterialTheme.typography.titleLarge)
-            if (selected == today) Text("TODAY", fontFamily = TtStyle.SportFont, color = TtStyle.Muted, style = MaterialTheme.typography.labelLarge)
-        }
-        Text("${selectedEvents.size} PLANS", fontFamily = TtStyle.SportFont, fontWeight = FontWeight.Bold)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
+        Surface(Modifier.size(8.dp), shape = TtShapes.Full, color = colors.primary) {}
+        Text("予定", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        Spacer(Modifier.width(TtSpace.XSmall))
+        Icon(Symbols.Check, contentDescription = null, tint = colors.tertiary, modifier = Modifier.size(14.dp))
+        Text("実施済み", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        Spacer(Modifier.width(TtSpace.XSmall))
+        Surface(Modifier.size(14.dp), shape = TtShapes.Full, color = colors.secondaryContainer) {}
+        Text("毎週の予定曜日", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
     }
-    MainButton("＋ 予定を追加", newEvent, Modifier.fillMaxWidth(), !state.busy && state.templates.isNotEmpty() && schedule.size < 5000)
+
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
+        Text(selected.format(DateTimeFormatter.ofPattern("M月d日（E）", Locale.JAPANESE)), style = MaterialTheme.typography.titleLarge)
+        if (selected == today) StatusPill("今日", container = colors.primaryContainer)
+        Spacer(Modifier.weight(1f))
+        Text("予定 ${selectedEvents.size}件", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+    }
+    MainButton(
+        "予定を追加",
+        { editing = null; showEditor = true },
+        Modifier.fillMaxWidth(),
+        !state.busy && state.templates.isNotEmpty() && schedule.size < 5000,
+        Symbols.Add,
+    )
     if (state.templates.isEmpty()) HelpText("メニューを作ると、カレンダーに予定を追加できます。")
     if (schedule.size >= 5000) HelpText("予定が5,000件に達しています。不要な予定を削除してください。")
     if (selected.dayOfWeek.value in state.settings.plannedDays) {
-        Text("毎週の予定曜日", color = TtStyle.Amber, style = MaterialTheme.typography.labelLarge)
+        StatusPill("毎週の予定曜日", container = colors.secondaryContainer, icon = Symbols.Event)
         if (selectedEvents.isEmpty()) HelpText("この日はトレーニングの予定曜日です。メニューと時刻を決めて予定を追加できます。")
     }
     if (selectedEvents.isEmpty()) {
         TtCard(Modifier.fillMaxWidth()) {
-            Text("この日の予定はまだありません", fontWeight = FontWeight.Bold)
+            SectionTitle("この日の予定はまだありません")
             HelpText("日付を選んで、トレーニングする日を決めましょう。")
         }
     }
     selectedEvents.forEach { event ->
         val template = state.templates.find { it.id == event.templateId }
         TtCard(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(event.timeMinutes?.let { "%02d:%02d".format(it / 60, it % 60) } ?: "時刻なし", fontFamily = TtStyle.SportFont, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Large)) {
+                Surface(shape = TtShapes.Large, color = colors.primaryContainer) {
+                    Text(
+                        event.timeMinutes?.let { timeText(it / 60, it % 60) } ?: "終日",
+                        style = MaterialTheme.typography.titleMedium.merge(TimerDigits),
+                        modifier = Modifier.padding(horizontal = TtSpace.Medium, vertical = TtSpace.Small),
+                    )
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(event.title, style = MaterialTheme.typography.titleMedium)
                     if (template != null && template.name != event.title) HelpText(template.name)
                 }
             }
             if (template == null) HelpText("メニューが削除されています。編集からメニューを選び直してください。")
-            MainButton("このメニューを開始", { template?.let(onStart) }, Modifier.fillMaxWidth(), template != null && !state.busy && !state.run.active)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SubButton("編集", { editing = event; showEditor = true }, Modifier.weight(1f), !state.busy)
-                TextButton(onClick = { deleting = event }, enabled = !state.busy, modifier = Modifier.weight(1f).heightIn(min = TtStyle.Target), colors = ButtonDefaults.textButtonColors(contentColor = TtStyle.Red)) { Text("削除") }
+            MainButton("このメニューを開始", { template?.let(onStart) }, Modifier.fillMaxWidth(), template != null && !state.busy && !state.run.active, Symbols.PlayArrow)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
+                OutlineAction("編集", { editing = event; showEditor = true }, Modifier.weight(1f), !state.busy, Symbols.Edit)
+                TextButton(
+                    onClick = { deleting = event },
+                    enabled = !state.busy,
+                    modifier = Modifier.weight(1f).heightIn(min = MinTouchTarget),
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
+                ) {
+                    Icon(Symbols.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("削除")
+                }
             }
         }
     }
     if (state.run.active && selectedEvents.isNotEmpty()) HelpText("進行中のトレーニングがあります。ホームから再開できます。")
     if (selectedRecords.isNotEmpty()) {
-        Text("この日の実施記録", style = MaterialTheme.typography.titleMedium)
+        SectionTitle("この日の実施記録")
         selectedRecords.forEach { session ->
-            TtCard(Modifier.fillMaxWidth(), TtStyle.GreenLight) {
-                Text("✓ ${session.plan.title}", fontWeight = FontWeight.Bold, color = TtStyle.Green)
-                HelpText("${session.results.count { it.wasPerformed() }}セットを実施")
+            TtCard(Modifier.fillMaxWidth(), containerColor = colors.tertiaryContainer) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Medium)) {
+                    Icon(Symbols.CheckCircle, contentDescription = null)
+                    Column {
+                        Text(session.plan.title, style = MaterialTheme.typography.titleMedium)
+                        Text("${session.results.count { it.wasPerformed() }}セットを実施", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
         }
     }
@@ -164,16 +193,23 @@ internal fun ColumnScope.CalendarScreen(
     deleting?.let { event ->
         AlertDialog(
             onDismissRequest = { deleting = null },
+            icon = { Icon(Symbols.Delete, contentDescription = null) },
             title = { Text("この予定を削除しますか？") },
             text = { Text("${event.date}\n${event.title}") },
-            confirmButton = { TextButton(onClick = { onSaveSchedule(schedule.filterNot { it.id == event.id }); deleting = null }, enabled = !state.busy) { Text("削除", color = TtStyle.Red) } },
+            confirmButton = {
+                TextButton(
+                    onClick = { onSaveSchedule(schedule.filterNot { it.id == event.id }); deleting = null },
+                    enabled = !state.busy,
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.error),
+                ) { Text("削除") }
+            },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("キャンセル") } },
         )
     }
 }
 
 @Composable
-private fun CalendarDay(
+private fun RowScope.CalendarDay(
     date: LocalDate,
     isSelected: Boolean,
     isToday: Boolean,
@@ -181,19 +217,19 @@ private fun CalendarDay(
     eventCount: Int,
     performed: Boolean,
     recurring: Boolean,
-    modifier: Modifier = Modifier,
     onSelect: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(4.dp)
-    val fill = when {
-        isSelected -> TtStyle.Ink
-        recurring && currentMonth -> TtStyle.AccentLight
-        else -> Color.White
+    val colors = MaterialTheme.colorScheme
+    val circle = when {
+        isSelected -> colors.primary
+        recurring && currentMonth -> colors.secondaryContainer
+        else -> Color.Transparent
     }
     val foreground = when {
-        isSelected -> Color.White
-        !currentMonth -> TtStyle.Muted
-        else -> TtStyle.Ink
+        isSelected -> colors.onPrimary
+        !currentMonth -> colors.onSurfaceVariant.copy(alpha = 0.55f)
+        recurring -> colors.onSecondaryContainer
+        else -> colors.onSurface
     }
     val description = buildString {
         append(date.format(DateTimeFormatter.ofPattern("yyyy年M月d日 E曜日", Locale.JAPANESE)))
@@ -203,18 +239,31 @@ private fun CalendarDay(
         if (recurring) append("、毎週の予定曜日")
     }
     Column(
-        modifier.heightIn(min = 44.dp).aspectRatio(0.88f)
-            .background(fill, shape)
-            .then(if (isToday) Modifier.border(2.dp, TtStyle.Accent, shape) else Modifier)
+        Modifier.weight(1f).heightIn(min = 56.dp).clip(TtShapes.Medium)
             .selectable(selected = isSelected, role = Role.Button, onClick = onSelect)
-            .semantics(mergeDescendants = true) { contentDescription = description },
+            .semantics(mergeDescendants = true) { contentDescription = description }
+            .padding(vertical = TtSpace.XSmall),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(date.dayOfMonth.toString(), color = foreground, fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clearAndSetSemantics { })
-        Row(Modifier.height(14.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (eventCount > 0) Box(Modifier.size(5.dp).background(if (isSelected) TtStyle.Accent else TtStyle.Ink, RoundedCornerShape(3.dp)))
-            if (performed) Text("✓", color = if (isSelected) TtStyle.Accent else TtStyle.Green, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold)
+        Surface(
+            Modifier.size(36.dp),
+            shape = TtShapes.Full,
+            color = circle,
+            border = if (isToday && !isSelected) BorderStroke(1.5.dp, colors.primary) else null,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    date.dayOfMonth.toString(),
+                    color = foreground,
+                    style = if (isSelected || isToday) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
+            }
+        }
+        Row(Modifier.height(12.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (eventCount > 0) Surface(Modifier.size(6.dp), shape = TtShapes.Full, color = colors.primary) {}
+            if (performed) Icon(Symbols.Check, contentDescription = null, tint = colors.tertiary, modifier = Modifier.size(12.dp))
         }
     }
 }
@@ -242,18 +291,19 @@ private fun ScheduleEditor(
     val parsedDate = runCatching { LocalDate.parse(date) }.getOrNull()
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(Symbols.Event, contentDescription = null) },
         title = { Text(if (event == null) "トレーニングの予定を追加" else "トレーニングの予定を編集") },
         text = {
-            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(TtSpace.Medium)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
                     Column(Modifier.weight(1f)) {
-                        Text("日付", style = MaterialTheme.typography.labelLarge)
-                        Text(parsedDate?.format(DateTimeFormatter.ofPattern("yyyy年M月d日（E）", Locale.JAPANESE)) ?: date)
+                        Text("日付", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(parsedDate?.format(DateTimeFormatter.ofPattern("yyyy年M月d日（E）", Locale.JAPANESE)) ?: date, style = MaterialTheme.typography.titleMedium)
                     }
-                    SubButton("変更", { pickDate = true }, Modifier.semantics { contentDescription = "日付を変更" })
+                    OutlineAction("変更", { pickDate = true }, Modifier.semantics { contentDescription = "日付を変更" }, icon = Symbols.CalendarMonth)
                 }
                 Box(Modifier.fillMaxWidth()) {
-                    SubButton(selectedTemplate?.name ?: "メニューを選ぶ", { menuOpen = true }, Modifier.fillMaxWidth(), templates.isNotEmpty())
+                    OutlineAction(selectedTemplate?.name ?: "メニューを選ぶ", { menuOpen = true }, Modifier.fillMaxWidth(), templates.isNotEmpty(), Symbols.FitnessCenter)
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         templates.forEach { template ->
                             DropdownMenuItem(text = { Text(template.name) }, onClick = { templateId = template.id; title = template.name.take(100); menuOpen = false })
@@ -261,18 +311,18 @@ private fun ScheduleEditor(
                     }
                 }
                 OutlinedTextField(title, { if (it.length <= 100) title = it }, label = { Text("予定名") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
                     Column(Modifier.weight(1f)) {
-                        Text("時刻（任意）", style = MaterialTheme.typography.labelLarge)
-                        Text(timeMinutes?.let { timeText(it / 60, it % 60) } ?: "時刻なし")
+                        Text("時刻（任意）", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(timeMinutes?.let { timeText(it / 60, it % 60) } ?: "時刻なし", style = MaterialTheme.typography.titleMedium)
                     }
-                    SubButton("選ぶ", { pickTime = true }, Modifier.semantics { contentDescription = "時刻を選ぶ" })
+                    OutlineAction("選ぶ", { pickTime = true }, Modifier.semantics { contentDescription = "時刻を選ぶ" }, icon = Symbols.Schedule)
                 }
                 if (timeMinutes != null) {
-                    TextButton({ timeMinutes = null }, Modifier.heightIn(min = TtStyle.Target)) { Text("時刻なしにする") }
+                    TextButton({ timeMinutes = null }, Modifier.heightIn(min = MinTouchTarget)) { Text("時刻なしにする") }
                 }
                 HelpText("当日はカレンダーの予定からトレーニングを開始できます。")
-                error?.let { Text(it, color = TtStyle.Red) }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
         confirmButton = {
