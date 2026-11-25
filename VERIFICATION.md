@@ -1,6 +1,64 @@
 # 検証記録
 
-最新の検証は2026年11月25日の改善版（1.1.0）です。以前の記録は、その下に当時のまま残しています。
+最新の検証は2026年11月26日のデザイン変更版（1.3.0）です。以前の記録は、その下に当時のまま残しています。
+
+## デザイン変更版の検証（2026年11月26日・1.3.0）
+
+デザインを「ダーク・アスレチック」に変えた1.3.0（versionCode 4）の記録です。機能・保存データの扱いは1.2.0と同じです。1.2.0（Material 3・壁紙の色に合わせる版）のAPKとソースは`artifacts/archive/`に残しています。
+
+| 変更 | 内容 |
+| --- | --- |
+| 色 | 常にダーク表示。背景 #0A0A0A（タイマーは #000000）、差し色はVolt #D4FF3A の1色。休憩はシアン #3DDCFF、残り3秒はオレンジレッド #FF5A1F。文字は #EDEDED。どの文字色も背景とのコントラスト比4.5:1以上。壁紙の色（ダイナミックカラー）とライト表示は廃止 |
+| 文字 | 英字の大見出しと数字にAnton（SIL Open Font License 1.1）を同梱し、ライセンス文をAPKの`assets/licenses/OFL-Anton.txt`に収録。日本語は端末のフォントのまま |
+| ホーム | 英字の大見出し、今日の進み具合の進捗リング、種目数・セット数の大きな数字 |
+| タイマー | 全面黒。残り時間を画面幅いっぱいの数字で表示し、1桁ずつ同じ幅の枠に入れて揺れを防止。残り3秒で数字がオレンジレッドになり、背景が暗い赤で脈打つ。開始前は次のセットの目標を大きく表示 |
+| その他 | 各ページに英字の大見出し（TalkBackでは読み上げず、日本語の見出しを読み上げる）。選択中のチップとナビゲーションはVolt地に黒。起動画面・システムバーも常に暗い表示。アプリアイコンは黒地にVoltのタイマー |
+
+```powershell
+.\.tooling\gradle-8.13\bin\gradle.bat compileDebugAndroidTestKotlin testDebugUnitTest assembleDebug assembleRelease --offline
+.\.tooling\gradle-8.13\bin\gradle.bat lintDebug --offline
+.\.tooling\gradle-8.13\bin\gradle.bat -p pc-debug test --offline
+```
+
+| 検証 | 結果 |
+| --- | --- |
+| Androidユニットテスト | **113件成功**、失敗・エラー0件（1.2.0と同じ構成） |
+| PC版テスト | **20件成功**、失敗・エラー0件。DesktopController 3件、DesktopStore 6件、共有UI 8件、デザイン確認用の画面書き出し3件（ホーム2画面、タイマー7画面、各ページ5画面を描画。残り3秒の画面はテスト用の時計を止めて脈打つ途中を書き出す） |
+| Android計測テスト | 16件のKotlinコンパイルに成功。端末では未実行 |
+| Android Lint | エラー0件・警告3件。1.2.0と同じく、`mipmap-anydpi-v26`の`-v26`が不要という提案、KAPTの代わりにKSPを使う提案、KTXの`SharedPreferences.edit`の提案 |
+| APK | debug版・release版とも生成。v2署名と`zipalign -c -P 16 4`を確認。証明書SHA-256は以前と同じ`833744fb…`で、スマホの既存アプリへデータを残したまま上書きできる。release版はversionCode 4・versionName 1.3.0・デバッグ不可。フォント（170,812バイト。release版ではリソース名が`res/uT.ttf`に短縮される）とライセンス文`assets/licenses/OFL-Anton.txt`が入っていることを確認 |
+
+最初は上の3つを1回のGradle実行でまとめて行い、失敗しました。原因はLintで、Kotlinのコンパイルとdebug版APKの生成は成功していました。Lintがテスト用の一時ファイル（kaptのスタブ`NonExistentClass.java`）を読みに行ったとき、別の処理がそのファイルを作り直していて見つからなかったという競合です。テスト・ビルドとLintを分けて実行し直し、すべて成功しました。ログは3回分とも`build-android.log`に残しています。
+
+配布物のSHA-256は`artifacts/SHA256SUMS.txt`（release `b273daa0…`、debug `af01b8a6…`、ソース `e1d25542…`）、証跡は`artifacts/verification/2026-11-26-athletic/`に保存しています。
+
+画面の見た目は、PC版のテストで書き出した画像（412×892dp相当）で確認しました。画像は`artifacts/verification/2026-11-26-athletic/screenshots/`にも保存しています。最初の書き出しで、タイマー画面の種目名・見出し・戻るボタンが黒い背景に黒い文字で見えなくなる不具合を見つけました。黒が配色の役割に含まれないため、文字色が既定の黒になっていたのが原因です。タイマー画面の文字色を明示して直し、書き出し直した画像で確認しました。
+
+実機での表示（タイマーの数字の大きさ、残り3秒の演出、Antonの表示、起動画面とシステムバーの色、テーマアイコン）は未確認です。
+
+## デザイン刷新版の検証（2026年11月25日・1.2.0）
+
+見た目をGoogleのMaterial Design 3（2025年のExpressive版）を土台に作り直した1.2.0（versionCode 3）の記録です。機能・保存データの扱いは1.1.0と同じです。
+
+| 変更 | 内容 |
+| --- | --- |
+| 色 | Android 12以降は端末の壁紙から作る配色（ダイナミックカラー）。それ以外はmaterial-color-utilitiesで種色 #2E9E5B から生成したブランド配色。ライト／ダークは端末の設定に従う |
+| 形・文字 | Material 3 Expressiveの角丸スケール（Compose Material3 1.4の`ShapeTokens`と同じ値）とタイプスケール。日本語の本文は行の高さ150%以上 |
+| 部品 | ピル型ボタン、大きな角丸カード、Material 3のNavigationBar。アイコンはMaterial Symbols（Apache License 2.0）の40個を収録 |
+| 画面 | ホーム・メニュー・カレンダー・記録・設定・各編集画面・タイマーを作り直し。タイマーは残り時間を円形リングで表示 |
+| アプリアイコン | Material Symbolsの「timer」を使ったアダプティブアイコン。Android 13以降はテーマアイコンに対応 |
+
+| 検証 | 結果 |
+| --- | --- |
+| Androidユニットテスト | **113件成功**、失敗・エラー0件（1.1.0と同じ構成） |
+| PC版テスト | **20件成功**、失敗・エラー0件。DesktopController 3件、DesktopStore 6件、共有UI 8件、デザイン確認用の画面書き出し3件（ライト・ダーク・壁紙の色の例で主な画面を描画） |
+| Android計測テスト | 16件のKotlinコンパイルに成功。端末では未実行 |
+| Android Lint | エラー0件・警告3件。アイコンのフォルダー名`mipmap-anydpi-v26`の`-v26`が不要という提案（minSdkが26のため。動作には影響なし）と、以前からあるKAPT・KTXの提案 |
+| APK | debug版・release版とも生成。v2署名と`zipalign -c -P 16 4`を確認。証明書SHA-256は以前と同じ`833744fb…`。release版はversionCode 3・versionName 1.2.0・デバッグ不可 |
+
+画面の見た目は、PC版のテストで書き出した画像（412×892dp相当）で確認しました。画像は`artifacts/verification/2026-11-25-design/screenshots/`にも保存しています。Lintの`-v26`の提案に従ってフォルダー名を`mipmap-anydpi`に変えるとリソースの再結合に失敗したため、検証済みの`mipmap-anydpi-v26`のままにしています。
+
+実機での表示（壁紙の色、ダークモード、テーマアイコン、日付・時刻選択の見た目）は未確認です。
 
 ## 改善版の検証（2026年11月25日）
 

@@ -2,7 +2,7 @@
 
 自宅向けの「筋トレタイマー＋習慣化」Androidアプリです。日本語のKotlin／Jetpack Composeアプリで、登録、広告、課金、サーバー、有料APIを使いません。初回から全身メニューを利用できます。アプリの基本動作にネット接続は不要です。
 
-2026年11月25日の改善版（1.1.0）では、リマインドの通知許可、回数の任意記録、記録の削除・修正、動作の重さ、マナーモード中の合図、画面オフ時の合図の途切れ、保存データの互換性などを直しました。同日のデザイン刷新版（1.2.0）では、見た目をGoogleのMaterial Design 3を土台に作り直し、Android 12以降は端末の壁紙の色に合わせるようにしました（詳しくは「デザイン」）。スマホが未接続のため、どちらも実機インストールと画面操作は未実施です。ビルド結果と検証範囲は、本書の「検証状況」と`VERIFICATION.md`に記載しています。
+2026年11月25日の改善版（1.1.0）では、リマインドの通知許可、回数の任意記録、記録の削除・修正、動作の重さ、マナーモード中の合図、画面オフ時の合図の途切れ、保存データの互換性などを直しました。同日のデザイン刷新版（1.2.0）では、見た目をGoogleのMaterial Design 3を土台に作り直し、Android 12以降は端末の壁紙の色に合わせるようにしました。11月26日のデザイン変更版（1.3.0）では、デザインを「ダーク・アスレチック」に変えました。常にダーク表示で、黒い背景に蛍光色の差し色、英字の大見出し、大きな数字を使います（詳しくは「デザイン」）。スマホが未接続のため、いずれも実機インストールと画面操作は未実施です。ビルド結果と検証範囲は、本書の「検証状況」と`VERIFICATION.md`に記載しています。
 
 PC上で画面とタイマーを操作できるデバッグ版も追加しました。この作業フォルダーでは **run-pc-debug.cmd をダブルクリック**して起動します。Android版の実際のCompose画面とTimerEngineを共有し、PC専用のデータを使います。詳しい手順は[PC-DEBUG.md](PC-DEBUG.md)に記載しています。
 
@@ -31,7 +31,7 @@ PC上で画面とタイマーを操作できるデバッグ版も追加しまし
 | 項目 | バージョン／値 |
 | --- | --- |
 | applicationId／名前空間 | `jp.tsuzutore.app` |
-| バージョン | `1.2.0` / versionCode `3` |
+| バージョン | `1.3.0` / versionCode `4` |
 | minSdk | 26（Android 8.0） |
 | compileSdk / targetSdk | 36 / 36 |
 | Android Build Tools | 36.0.0 |
@@ -60,7 +60,7 @@ PC版は`pc-debug/`の独立したGradleプロジェクトです。Compose Multi
 
 PCの設定・メニュー・予定・記録は`.tooling/pc-debug-data/state.json`に保存し、スマホとは別に管理します。スマホの記録を自動で読み書きすることはありません。`run-pc-debug.cmd -Debug`で起動すると、Android StudioのRemote JVM Debugから`localhost:5005`へ接続して共有ソースのブレークポイントを使えます。起動・ログ・詳細手順は[PC-DEBUG.md](PC-DEBUG.md)を参照してください。
 
-起動スクリプトで「つづトレ — PCデバッグ」の実ウィンドウが生成され、PC専用JSONへ保存できることを確認しました。PC版のテストはデザイン刷新版（1.2.0）で**20件成功、失敗・エラー0件**です。内訳はDesktopController 3件、DesktopStore 6件、共有Compose UI 8件、デザイン確認用の画面書き出し3件です。書き出した主な画面（ライト・ダーク・壁紙の色の例）は目視で確認しました。テストレポートは`pc-debug/build/reports/tests/test/index.html`、画像は`pc-debug/build/reports/pc-ui/design/`にあります。Android端末での確認範囲は後述の記録と区別しています。
+起動スクリプトで「つづトレ — PCデバッグ」の実ウィンドウが生成され、PC専用JSONへ保存できることを確認しました。PC版のテストはデザイン変更版（1.3.0）で**20件成功、失敗・エラー0件**です。内訳はDesktopController 3件、DesktopStore 6件、共有Compose UI 8件、デザイン確認用の画面書き出し3件です。書き出した主な画面は目視で確認しました。テストレポートは`pc-debug/build/reports/tests/test/index.html`、画像は`pc-debug/build/reports/pc-ui/design/`にあります。Android端末での確認範囲は後述の記録と区別しています。
 
 ## Windowsで開く・ビルドする
 
@@ -116,7 +116,7 @@ debug用の秘密鍵は初回ビルド時にJDKの`keytool`で`.tooling/debug.ke
 
 **別の秘密鍵で再ビルドしたAPKでは、既存アプリへ上書き更新できません。** 鍵は`.tooling/debug.keystore`の1か所にしかないため、USBメモリやクラウドなど別の場所にもコピーしておいてください。鍵がなくなってビルド時に新しい鍵が作られた場合は、ビルドログに警告が出ます。鍵が異なる場合は、アプリ内からJSONを保存してから既存アプリをアンインストールし、新APKをインストールしてJSONを取り込みます。アンインストールすると端末内のアプリデータは消えます。
 
-versionCodeは1.1.0で`2`、デザイン刷新版の1.2.0で`3`に上げました。古い版のAPKを新しい版の上に誤って入れることはできません。次に配布するときも、versionCodeを1つ以上上げてください。
+versionCodeは1.1.0で`2`、1.2.0で`3`、デザイン変更版の1.3.0で`4`に上げました。古い版のAPKを新しい版の上に誤って入れることはできません。次に配布するときも、versionCodeを1つ以上上げてください。
 
 ## WindowsからGalaxyへインストール
 
@@ -216,23 +216,55 @@ Foreground ServiceとWakeLockでも、強制停止、メーカー固有の省電
 
 ## デザイン
 
-デザインシステムは、Googleの[Material Design 3](https://m3.material.io/)（2025年のExpressive版）を土台にしています。Androidの他のアプリと操作感がそろい、ライト／ダークの両方で読みやすさの基準を満たす色の組み合わせになります。
+デザインシステムは「ダーク・アスレチック」です。Googleの[Material Design 3](https://m3.material.io/)のダークテーマを土台に、Nike Training ClubやStravaのようなトレーニングアプリの見せ方（黒い背景、蛍光色の差し色、大きな数字）を取り入れています。端末の設定に関係なく常にダーク表示で、夜のトレーニングでもまぶしくならないようにしています。
 
-| 要素 | 内容 |
+| 項目 | 内容 |
 | --- | --- |
-| 色 | Android 12以降は端末の壁紙から色を作る「Material You（ダイナミックカラー）」を使います。Android 11以前とPC版は、種色 #2E9E5B（Vibrant）からGoogleの[material-color-utilities](https://github.com/material-foundation/material-color-utilities)で生成したブランド配色（緑）を使います。ライト／ダークは端末の設定に合わせて切り替わります |
-| 形 | Material 3 Expressiveの角丸スケール（4・8・12・16・20・28・32・48dp、完全な丸）。値はCompose Material3 1.4の`ShapeTokens`と同じです。ボタンは丸いピル型、カードは20〜28dpの大きな角丸です |
-| 文字 | Material 3のタイプスケールを使い、日本語の本文は行の高さを文字サイズの150%以上にしています（デジタル庁デザインシステムの基準）。英字用の字間は付けず、見出しは太めの強調スタイルです。タイマーの数字は桁ずれしない等幅数字です |
+| 色 | 背景はほぼ黒の #0A0A0A、タイマー画面は純黒の #000000 です。カードは一段明るいグレーにしています。差し色は蛍光イエローグリーンの「Volt」#D4FF3A だけで、操作ボタン・運動中・進み具合に使います。休憩中はシアン #3DDCFF、残り3秒はオレンジレッド #FF5A1F で表します。文字は純白ではなく #EDEDED にしてまぶしさを抑え、どの文字色も背景とのコントラスト比4.5:1以上（WCAG AA）です。グレーには色みを付けず、端末の壁紙の色にも合わせません |
+| 形 | Material 3 Expressiveの角丸スケール（4・8・12・16・20・28・32・48dp、完全な丸）です。値はCompose Material3 1.4の`ShapeTokens`と同じで、ボタンは丸いピル型です |
+| 文字 | 英字の大見出しと数字には[Anton](https://fonts.google.com/specimen/Anton)（SIL Open Font License 1.1）を使います。フォントは`app/src/main/res/font/`に同梱し、ライセンス文を`app/src/main/assets/licenses/OFL-Anton.txt`としてAPKに入れています。Antonには日本語の文字がないため、日本語は端末のフォントのままです。日本語の本文は、行の高さを文字サイズの150%以上にしています（デジタル庁デザインシステムの基準） |
 | アイコン | Googleの[Material Symbols](https://github.com/google/material-design-icons)（Rounded、Apache License 2.0）から、使う40個のパスだけを`ui/Symbols.kt`に収録しています。アイコン用ライブラリは追加していません |
-| アプリアイコン | Material Symbolsの「timer」を使ったアダプティブアイコンです。Android 13以降の「テーマアイコン」では壁紙の色に合わせて表示されます |
+| アプリアイコン | 黒地にVoltの「timer」を置いたアダプティブアイコンです。Android 13以降の「テーマアイコン」にも対応しています |
 
-ホームは大きな角丸カードに今日のメニューと「トレーニングを開始」を置き、今週の実施日を丸いチップで表示します。タイマーは残り時間を円形のリングで表示し、リングは1秒ごとの更新の間もなめらかに減ります。開始・完了・再開などの主な操作は高さ72dpの大きなボタン、±10秒は丸いボタンです。下部ナビゲーションはMaterial 3のNavigationBarで、選択中のタブは塗りつぶしアイコンになります。
+ホームは「TODAY」「REST DAY」などの英字の大見出しで始まり、その下に今日のメニューのカードを置きます。カードには今日の進み具合を示す進捗リング（予定したセットのうち実施した割合）と、種目数・セット数の大きな数字を並べます。今週の実施日は丸いチップと進捗バーで示します。
 
-色・形・文字・部品は`ui/Theme.kt`にまとめています（`BrandLight`・`BrandDark`、`TtShapes`、`TtSpace`、`MainButton`など）。操作領域は最小48dpです。日本語の操作名、スクロール、TalkBackの状態説明、文字拡大に合わせたタイマーの文字サイズ調整を維持しています。毎セットの回数・負荷の入力は不要です。
+タイマーは全面黒で、残り時間を画面の幅いっぱいの数字で表示します。数字の色は運動中がVolt、休憩中がシアンです。残り3秒になるとオレンジレッドに変わり、背景が1秒ごとに暗い赤で脈打って、数字も小さく弾みます。白く光らせないので、暗い部屋でもまぶしくなりません。Antonは「1」だけ幅が狭く、等幅数字の機能もありません。そのため1桁ずつ同じ幅の枠に入れて、数字が変わっても左右に揺れないようにしています。開始前は、次のセットの目標（回数または秒数）を大きく表示します。
 
-PC版のテストでは、主な画面をスマホと同じ大きさ（412×892dp）で画像に書き出します。ライト／ダークに加えて、壁紙の色の例（青・オレンジ）でも描画し、`pc-debug/build/reports/pc-ui/design/`に保存します。
+英字の見出しは日本語の見出しを大きく見せるための飾りです。TalkBackでは英字を読み上げず、日本語の見出しと状態（「運動中」など）を読み上げます。操作領域は最小48dpです。日本語の操作名、TalkBackの状態説明、画面幅に合わせて大きさを決めるタイマーの数字（文字の拡大設定でもはみ出さない）を維持しています。毎セットの回数・負荷の入力は不要です。
+
+色・文字・部品は`ui/Theme.kt`にまとめています（`Athletic`・`AthleticColors`、`TtType`、`TtShapes`、`MainButton`、`ProgressRing`、`StableNumber`など）。
+
+PC版のテストでは、主な画面をスマホと同じ大きさ（412×892dp）で画像に書き出し、`pc-debug/build/reports/pc-ui/design/`に保存します。残り3秒の演出は、テスト用の時計を止め、脈打つ途中の画面を書き出しています。
+
+1.2.0（Material 3・壁紙の色に合わせる版）のAPKとソースは、`artifacts/archive/`に残しています。
 
 ## 検証状況
+
+### デザイン変更版（2026年11月26日・1.3.0）
+
+デザインを「ダーク・アスレチック」に変えた1.3.0の記録です。**ビルド成功**。詳細は`VERIFICATION.md`に記録しています。
+
+| 検証対象 | 結果 |
+| --- | --- |
+| JVMユニットテスト | **113件成功、失敗・エラー0件** |
+| PC版テスト | **20件成功、失敗・エラー0件**。ホーム・タイマー（残り3秒を含む）・各ページを画像に書き出して確認 |
+| Android Lint | **エラー0件・警告3件**（1.2.0と同じ提案のみ） |
+| APK | debug版・release版とも生成。v2署名・16KBアラインメント・以前と同じ証明書を確認。release版はversionCode 4。フォントとライセンス文の同梱を確認 |
+| Android計測テスト | 16件のKotlinコンパイル成功、端末実行は未実施 |
+| 実機での確認 | **未実施**（タイマーの数字の大きさ、残り3秒の演出、フォント、起動画面とシステムバーの色の実機表示は未確認） |
+
+### デザイン刷新版（2026年11月25日・1.2.0）
+
+Material Design 3を土台にデザインを作り直した1.2.0の記録です。**ビルド成功**。詳細は`VERIFICATION.md`に記録しています。
+
+| 検証対象 | 結果 |
+| --- | --- |
+| JVMユニットテスト | **113件成功、失敗・エラー0件** |
+| PC版テスト | **20件成功、失敗・エラー0件**。主な画面をライト・ダーク・壁紙の色の例で画像に書き出して確認 |
+| Android Lint | **エラー0件・警告3件**（アイコンフォルダー名の`-v26`の提案と、以前からあるKAPT・KTXの提案） |
+| APK | debug版・release版とも生成。v2署名・16KBアラインメント・以前と同じ証明書を確認。release版はversionCode 3 |
+| Android計測テスト | 16件のKotlinコンパイル成功、端末実行は未実施 |
+| 実機での確認 | **未実施**（壁紙の色・ダークモード・テーマアイコンの実機表示は未確認） |
 
 ### 改善版（2026年11月25日）
 
@@ -340,8 +372,11 @@ Galaxyの省電力ON／OFF、アプリのバックグラウンド制限、通知
 - [Android Gradle Plugin 8.13](https://developer.android.com/build/releases/agp-8-13-0-release-notes)
 - [Compose BOM](https://developer.android.com/develop/ui/compose/bom)
 - [Material Design 3](https://m3.material.io/)
+- [Material Design 3の色の仕組み（ダークテーマを含む）](https://m3.material.io/styles/color/system/overview)
 - [Material Design 3 in Compose](https://developer.android.com/develop/ui/compose/designsystems/material3)
 - [material-color-utilities](https://github.com/material-foundation/material-color-utilities)
 - [Material Symbols](https://github.com/google/material-design-icons)
+- [Anton（Google Fonts）](https://fonts.google.com/specimen/Anton)と[SIL Open Font License 1.1](https://openfontlicense.org/)
+- [WCAG 2.1 コントラスト（最低限）](https://www.w3.org/TR/WCAG21/#contrast-minimum)
 - [デジタル庁デザインシステム](https://design.digital.go.jp/dads/)
 - [アプリ専用デザインシステムの定義方針](https://design.digital.go.jp/dads/guidance/local-design-system/)

@@ -25,7 +25,7 @@ internal fun QuickStartScreen(
     val today = rememberToday()
     val plan = createPlan(template, state.settings, today)
     val enabled = !state.busy && !state.run.active
-    EditorPage("トレーニングを開始", back) {
+    EditorPage("トレーニングを開始", back, "START") {
         Column(verticalArrangement = Arrangement.spacedBy(TtSpace.XSmall)) {
             Text("始める種目をタップ", style = MaterialTheme.typography.headlineSmall)
             HelpText("選んだ種目からすぐに開始。セット間も自由に切り替えられます。")
@@ -33,7 +33,7 @@ internal fun QuickStartScreen(
         if (state.templates.size > 1) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
                 state.templates.forEach { menu ->
-                    FilterChip(menu.id == template.id, { selectedId = menu.id }, { Text(menu.name) }, modifier = Modifier.heightIn(min = MinTouchTarget))
+                    TtChip(menu.id == template.id, { selectedId = menu.id }, { Text(menu.name) }, modifier = Modifier.heightIn(min = MinTouchTarget))
                 }
             }
         }

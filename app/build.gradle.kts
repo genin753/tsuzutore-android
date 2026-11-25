@@ -16,8 +16,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Raise on every release so an older APK can no longer be installed over newer data by accident.
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }

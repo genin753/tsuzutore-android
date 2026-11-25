@@ -89,19 +89,31 @@ fun TsuzuToreApp(state: AppUiState, actions: AppUiActions) {
     val showNavigation = !workoutVisible && quickStart == null && preview == null && editTemplate == null && !showInterval
     TsuzuToreTheme {
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.surface,
+            // The running timer sits on true black; every other screen on the near-black canvas.
+            containerColor = if (workoutVisible) Athletic.Black else MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = {
                 if (showNavigation) {
-                    NavigationBar {
-                        destinations.forEachIndexed { index, destination ->
-                            val selected = page == index
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = { page = index },
-                                icon = { Icon(if (selected) destination.selectedIcon else destination.icon, contentDescription = null) },
-                                label = { Text(destination.label, maxLines = 1, softWrap = false) },
-                            )
+                    Column {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        NavigationBar(containerColor = Athletic.Black, tonalElevation = 0.dp) {
+                            destinations.forEachIndexed { index, destination ->
+                                val selected = page == index
+                                NavigationBarItem(
+                                    selected = selected,
+                                    onClick = { page = index },
+                                    icon = { Icon(if (selected) destination.selectedIcon else destination.icon, contentDescription = null) },
+                                    label = { Text(destination.label, maxLines = 1, softWrap = false) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = Athletic.OnVolt,
+                                        selectedTextColor = Athletic.Volt,
+                                        indicatorColor = Athletic.Volt,
+                                        unselectedIconColor = Athletic.InkMuted,
+                                        unselectedTextColor = Athletic.InkMuted,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }

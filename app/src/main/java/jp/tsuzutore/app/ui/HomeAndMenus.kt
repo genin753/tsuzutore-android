@@ -1,6 +1,7 @@
 package jp.tsuzutore.app.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -9,7 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -17,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import jp.tsuzutore.app.domain.*
@@ -52,48 +56,85 @@ internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTem
     val firstWeek = isFirstWeek(state.settings, today)
     val plannedSets = template?.exercises?.sumOf { if (firstWeek) 2 else it.sets } ?: 0
     val active = state.run.active
+    val running = state.run.session
+    // Today's progress: the running session's finished sets, otherwise the sets done today against today's menu.
+    val todayKey = today.toString()
+    val doneToday = remember(state.sessions, todayKey) {
+        state.sessions.filter { it.localDate == todayKey && it.plan.kind == PlanKind.WORKOUT }.sumOf { performedSets(it) }
+    }
+    val (setsDone, setsTotal) = if (active && running != null) {
+        running.plan.exercises.sumOf { completedExerciseSets(it, running.results) } to running.plan.exercises.sumOf { it.sets }
+    } else {
+        doneToday to plannedSets
+    }
+    val exerciseCount = if (active && running != null) running.plan.exercises.size else template?.exercises?.size ?: 0
+    val percent = if (setsTotal > 0) (setsDone * 100 / setsTotal).coerceAtMost(100) else 0
 
-    Column(Modifier.fillMaxWidth().padding(top = TtSpace.Small), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = TtSpace.Small), verticalArrangement = Arrangement.spacedBy(TtSpace.XSmall)) {
         Text(today.format(japaneseDate), style = MaterialTheme.typography.titleSmall, color = colors.primary)
-        Text("つづトレ", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.semantics { heading() })
+        Text(
+            when {
+                active -> "KEEP GOING"
+                completedToday -> "NICE WORK"
+                todayPlanned -> "TODAY"
+                else -> "REST DAY"
+            },
+            style = TtType.Hero,
+            modifier = Modifier.clearAndSetSemantics { },
+        )
     }
 
-    Surface(Modifier.fillMaxWidth(), shape = TtShapes.ExtraLarge, color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(TtSpace.Large)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Medium)) {
-                IconBadge(
-                    when {
-                        active -> Symbols.PlayArrow
-                        completedToday -> Symbols.CheckCircle
-                        todayPlanned -> Symbols.FitnessCenter
-                        else -> Symbols.Bedtime
-                    },
-                    container = colors.primary,
-                )
-                Text(
-                    when {
-                        active -> "トレーニング進行中"
-                        completedToday -> "今日のトレーニング完了"
-                        todayPlanned -> "今日のトレーニング"
-                        else -> "今日は休養日"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
+    Surface(Modifier.fillMaxWidth(), shape = TtShapes.ExtraLarge, color = colors.surfaceContainer) {
+        Column(Modifier.padding(TtSpace.XLarge), verticalArrangement = Arrangement.spacedBy(TtSpace.Large)) {
             Column(verticalArrangement = Arrangement.spacedBy(TtSpace.XSmall)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
+                    Box(Modifier.size(8.dp).background(colors.primary, TtShapes.Full))
+                    Text(
+                        when {
+                            active -> "トレーニング進行中"
+                            completedToday -> "今日のトレーニング完了"
+                            todayPlanned -> "今日のトレーニング"
+                            else -> "今日は休養日"
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.primary,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                }
                 Text(
-                    if (active) state.run.exercise?.name ?: state.run.session?.plan?.title.orEmpty()
+                    if (active) state.run.exercise?.name ?: running?.plan?.title.orEmpty()
                     else template?.name ?: "最初のメニューを作ろう",
                     style = MaterialTheme.typography.headlineMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 val detail = when {
-                    active -> state.run.session?.plan?.title.orEmpty()
-                    template != null -> "${template.exercises.size}種目 · ${plannedSets}セット${if (firstWeek) " · 初週モード" else ""}"
-                    else -> "種目とセット数を決めると、ここからすぐに始められます。"
+                    active -> running?.plan?.title
+                    template == null -> "種目とセット数を決めると、ここからすぐに始められます。"
+                    firstWeek -> "初週モード · 各種目2セット"
+                    else -> null
                 }
-                Text(detail, style = MaterialTheme.typography.bodyLarge)
+                if (detail != null) Text(detail, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
+            }
+            if (active || template != null) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.XLarge)) {
+                    ProgressRing(
+                        percent / 100f,
+                        Modifier.size(136.dp).clearAndSetSemantics { contentDescription = "今日の進み具合 ${percent}パーセント" },
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text("$percent", style = TtType.Display, color = colors.onSurface)
+                                Text("%", style = TtType.Title, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                            }
+                            Text("DONE", style = TtType.Label, color = colors.onSurfaceVariant)
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(TtSpace.Medium)) {
+                        BigStat("$exerciseCount", "EXERCISES", "${exerciseCount}種目")
+                        BigStat("$setsDone/$setsTotal", "SETS", "${setsTotal}セット中${setsDone}セット実施")
+                    }
+                }
             }
             when {
                 active -> MainButton("トレーニングに戻る", resume, Modifier.fillMaxWidth(), icon = Symbols.PlayArrow, height = LargeButtonHeight)
@@ -105,6 +146,7 @@ internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTem
                     if (todayPlanned) state.settings.cueMemo.ifBlank { "好きな種目をタップして開始できます" }
                     else "体調に合わせて、休養日もトレーニングできます",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant,
                 )
             }
         }
@@ -113,6 +155,7 @@ internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTem
     TtCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("THIS WEEK", style = TtType.Label, color = colors.primary, modifier = Modifier.clearAndSetSemantics { })
                 SectionTitle("今週のトレーニング")
                 Text(
                     "${monday.monthValue}/${monday.dayOfMonth} — ${monday.plusDays(6).monthValue}/${monday.plusDays(6).dayOfMonth}",
@@ -120,13 +163,18 @@ internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTem
                     color = colors.onSurfaceVariant,
                 )
             }
-            Text(weekly.toString(), style = MaterialTheme.typography.displaySmall.merge(TimerDigits), color = colors.primary)
-            Text(
-                " / ${state.settings.weeklyGoal}日",
-                style = MaterialTheme.typography.titleMedium,
-                color = colors.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
+            Row(
+                Modifier.clearAndSetSemantics { contentDescription = "今週 ${weekly}日 / 目標${state.settings.weeklyGoal}日" },
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Text(weekly.toString(), style = TtType.Display, color = colors.primary)
+                Text(
+                    " / ${state.settings.weeklyGoal}日",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
         }
         Row(Modifier.fillMaxWidth()) {
             weekdayLabels.forEachIndexed { index, label ->
@@ -150,7 +198,7 @@ internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTem
             LegendDot(colors.primary)
             Text("実施済み", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             Spacer(Modifier.width(TtSpace.Small))
-            LegendDot(colors.secondaryContainer)
+            LegendDot(colors.surfaceContainerHighest)
             Text("予定日", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
     }
@@ -170,6 +218,7 @@ internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTem
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Large)) {
             IconBadge(Symbols.Timer, container = colors.tertiaryContainer)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("INTERVAL", style = TtType.Label, color = colors.tertiary, modifier = Modifier.clearAndSetSemantics { })
                 SectionTitle("自由タイマー")
                 HelpText("運動・休憩・ラウンドを自由に設定。初期値は20秒＋10秒を8回。")
             }
@@ -178,45 +227,70 @@ internal fun HomeScreen(state: AppUiState, resume: () -> Unit, preview: (MenuTem
     }
 }
 
+/** Sets actually done in [session]; a left/right exercise counts once both of its sides are done. */
+private fun performedSets(session: WorkoutSession): Int = session.plan.exercises.sumOf { exercise ->
+    val done = session.results.filter { it.exerciseId == exercise.id && it.isPerformed() }.map { it.setNumber to it.side }.toSet()
+    val sides = if (exercise.bilateral) listOf(Side.LEFT, Side.RIGHT) else listOf(Side.BOTH)
+    (1..exercise.sets).count { set -> sides.all { (set to it) in done } }
+}
+
+/** A big Anton number over a small English label; read out as one Japanese phrase. */
+@Composable
+private fun BigStat(value: String, label: String, description: String) {
+    Column(Modifier.clearAndSetSemantics { contentDescription = description }, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(value, style = TtType.Display, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, softWrap = false)
+        Text(label, style = TtType.Label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 @Composable
 private fun RowScope.WeekDay(label: String, date: LocalDate, done: Boolean, planned: Boolean, isToday: Boolean, description: String) {
     val colors = MaterialTheme.colorScheme
     val container = when {
         done -> colors.primary
-        planned -> colors.secondaryContainer
-        else -> colors.surfaceContainerHighest
+        planned -> colors.surfaceContainerHighest
+        else -> Color.Transparent
+    }
+    val content = when {
+        done -> colors.onPrimary
+        planned -> colors.onSurface
+        else -> colors.onSurfaceVariant
     }
     Column(
         Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = description },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = if (isToday) colors.onSurface else colors.onSurfaceVariant)
         Surface(
             Modifier.size(38.dp),
             shape = TtShapes.Full,
             color = container,
-            contentColor = contentColorFor(container),
-            border = if (isToday && !done) BorderStroke(2.dp, colors.primary) else null,
+            contentColor = content,
+            border = when {
+                isToday && !done -> BorderStroke(2.dp, colors.onSurface)
+                !done && !planned -> BorderStroke(1.dp, colors.outlineVariant)
+                else -> null
+            },
         ) {
             Box(contentAlignment = Alignment.Center) {
                 if (done) Icon(Symbols.Check, contentDescription = null, modifier = Modifier.size(20.dp))
-                else Text(date.dayOfMonth.toString(), style = MaterialTheme.typography.labelLarge)
+                else Text(date.dayOfMonth.toString(), style = TtType.Title.copy(fontSize = 16.sp, lineHeight = 18.sp))
             }
         }
     }
 }
 
 @Composable
-private fun LegendDot(color: androidx.compose.ui.graphics.Color) {
+private fun LegendDot(color: Color) {
     Surface(Modifier.size(10.dp), shape = TtShapes.Full, color = color) {}
 }
 
 /** Numbered circle that leads an exercise row. */
 @Composable
 internal fun NumberDot(number: Int, modifier: Modifier = Modifier) {
-    Surface(modifier.size(32.dp), shape = TtShapes.Full, color = MaterialTheme.colorScheme.secondaryContainer) {
-        Box(contentAlignment = Alignment.Center) { Text(number.toString(), style = MaterialTheme.typography.labelLarge) }
+    Surface(modifier.size(32.dp), shape = TtShapes.Full, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+        Box(contentAlignment = Alignment.Center) { Text(number.toString(), style = TtType.Title.copy(fontSize = 16.sp, lineHeight = 18.sp)) }
     }
 }
 
@@ -224,7 +298,7 @@ internal fun NumberDot(number: Int, modifier: Modifier = Modifier) {
 internal fun MenuScreen(state: AppUiState, preview: (MenuTemplate) -> Unit, edit: (MenuTemplate) -> Unit, actions: AppUiActions) {
     val colors = MaterialTheme.colorScheme
     var deleting by remember { mutableStateOf<MenuTemplate?>(null) }
-    PageHeader("メニュー", "自分のペースに合わせて、内容を整えられます。")
+    PageHeader("WORKOUTS", "メニュー", "自分のペースに合わせて、内容を整えられます。")
     MainButton("メニューを追加", { edit(MenuTemplate(UUID.randomUUID().toString(), "新しいメニュー", emptyList())) }, Modifier.fillMaxWidth(), icon = Symbols.Add)
     if (state.templates.isEmpty()) {
         TtCard(Modifier.fillMaxWidth()) {
@@ -317,11 +391,11 @@ internal fun PlanPreview(template: MenuTemplate, settings: AppSettings, busy: Bo
     var warmup by remember(settings.warmupSeconds) { mutableStateOf(settings.warmupSeconds.toString()) }
     val warmupValue = warmup.toIntOrNull()
     val actual = exercises.filter { !shortened || selected[it.id] == true }.map { if (shortened) it.copy(sets = counts[it.id] ?: it.sets) else it }
-    EditorPage("開始前の確認", back) {
+    EditorPage("開始前の確認", back, "READY?") {
         Text(template.name, style = MaterialTheme.typography.headlineSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
-            FilterChip(!shortened, { shortened = false }, { Text("通常メニュー") }, modifier = Modifier.heightIn(min = MinTouchTarget))
-            FilterChip(shortened, { shortened = true }, { Text("短縮メニュー") }, modifier = Modifier.heightIn(min = MinTouchTarget))
+            TtChip(!shortened, { shortened = false }, { Text("通常メニュー") }, modifier = Modifier.heightIn(min = MinTouchTarget))
+            TtChip(shortened, { shortened = true }, { Text("短縮メニュー") }, modifier = Modifier.heightIn(min = MinTouchTarget))
         }
         TtCard(Modifier.fillMaxWidth(), containerColor = if (firstWeek) colors.tertiaryContainer else colors.surfaceContainer) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Medium)) {
@@ -392,7 +466,7 @@ internal fun TemplateEditor(template: MenuTemplate, back: () -> Unit, save: (Men
     var editing by remember { mutableStateOf<Exercise?>(null) }
     var deleting by remember { mutableStateOf<Exercise?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
-    EditorPage("メニューを編集", back) {
+    EditorPage("メニューを編集", back, "EDIT") {
         OutlinedTextField(
             name,
             { name = it; error = null },
@@ -499,8 +573,8 @@ private fun ExerciseDialog(exercise: Exercise, dismiss: () -> Unit, save: (Exerc
                 Text("種目を編集", style = MaterialTheme.typography.headlineSmall)
                 OutlinedTextField(name, { name = it }, label = { Text("種目名") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
-                    FilterChip(mode == ExerciseMode.REPS, { mode = ExerciseMode.REPS }, { Text("回数制") }, modifier = Modifier.heightIn(min = MinTouchTarget))
-                    FilterChip(mode == ExerciseMode.TIME, {
+                    TtChip(mode == ExerciseMode.REPS, { mode = ExerciseMode.REPS }, { Text("回数制") }, modifier = Modifier.heightIn(min = MinTouchTarget))
+                    TtChip(mode == ExerciseMode.TIME, {
                         if (mode != ExerciseMode.TIME) {
                             min = "20"
                             max = "40"
@@ -519,7 +593,7 @@ private fun ExerciseDialog(exercise: Exercise, dismiss: () -> Unit, save: (Exerc
                 NumericField("セット間休憩（0〜${Limits.REST_SECONDS}秒）", rest, { rest = it })
                 Row(horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
                     listOf(90, 120, 180).forEach { value ->
-                        FilterChip(rest == value.toString(), { rest = value.toString() }, { Text("${value}秒") }, modifier = Modifier.heightIn(min = MinTouchTarget))
+                        TtChip(rest == value.toString(), { rest = value.toString() }, { Text("${value}秒") }, modifier = Modifier.heightIn(min = MinTouchTarget))
                     }
                 }
                 SettingSwitch("左右のある種目", "左→右の両側で1セット。切り替え時に開始を待ちます。", bilateral, { bilateral = it })
@@ -559,7 +633,7 @@ internal fun IntervalSetup(busy: Boolean, back: () -> Unit, start: (WorkoutPlan)
     var rest by remember { mutableStateOf("10") }
     var rounds by remember { mutableStateOf("8") }
     val valid = work.toIntOrNull() in 1..Limits.TARGET_SECONDS && rest.toIntOrNull() in 0..Limits.REST_SECONDS && rounds.toIntOrNull() in 1..Limits.SETS
-    EditorPage("自由タイマー", back) {
+    EditorPage("自由タイマー", back, "INTERVAL") {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Large)) {
             IconBadge(Symbols.Timer, container = MaterialTheme.colorScheme.tertiaryContainer, size = 56.dp)
             Column(Modifier.weight(1f)) {
@@ -585,13 +659,13 @@ internal fun IntervalSetup(busy: Boolean, back: () -> Unit, start: (WorkoutPlan)
 }
 
 @Composable
-internal fun EditorPage(title: String, back: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+internal fun EditorPage(title: String, back: () -> Unit, display: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier.widthIn(max = 720.dp).fillMaxSize().verticalScroll(rememberScrollState())
             .padding(start = TtSpace.Small, end = TtSpace.Large, top = TtSpace.Small, bottom = TtSpace.Large),
         verticalArrangement = Arrangement.spacedBy(TtSpace.Large),
     ) {
-        BackTitle(title, back)
+        BackTitle(title, back, display)
         Column(Modifier.padding(start = TtSpace.Small), verticalArrangement = Arrangement.spacedBy(TtSpace.Large), content = content)
         Spacer(Modifier.height(TtSpace.Large))
     }

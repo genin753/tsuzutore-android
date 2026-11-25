@@ -16,6 +16,9 @@ kotlin {
     }
 }
 
+// The display font the Android app bundles in res/font, so the PC screens use the same type.
+sourceSets.main { resources.srcDir("../app/src/main/res/font") }
+
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)

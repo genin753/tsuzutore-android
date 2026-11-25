@@ -1,114 +1,109 @@
 package jp.tsuzutore.app.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import jp.tsuzutore.app.domain.Exercise
 import jp.tsuzutore.app.domain.ExerciseMode
 
 /*
- * Design system: Material Design 3 (Expressive, 2025) — https://m3.material.io
+ * Design system: "Dark Athletic"
+ * A Material Design 3 dark theme (https://m3.material.io/styles/color/system/overview) styled after
+ * sports training apps: a black canvas, one neon accent, and condensed display type for numbers.
  *
- * Color  Android 12+ uses the colors of the user's wallpaper (dynamic color). Elsewhere the brand
- *        scheme below is used; it is generated from seed #2E9E5B (Vibrant variant) with Google's
- *        material-color-utilities, so every role keeps the M3 contrast guarantees in light and dark.
- * Shape  The M3 Expressive corner scale, as defined by androidx.compose.material3 1.4 ShapeTokens.
- * Type   The M3 type scale. Japanese body text gets a line height of at least 150% (Digital Agency
- *        Design System guideline) and no Latin letter spacing; headlines use emphasized weights.
+ * Color  Always dark, so a workout in a dark room is not dazzling. Surfaces are neutral near-black
+ *        with no hue tint, and text is off-white rather than pure white. One accent, Volt, marks
+ *        actions, work and progress; Ice marks rest; Flare marks the last seconds of a countdown.
+ *        Every text color meets WCAG AA (4.5:1) on the surfaces it is used on.
+ * Type   Anton (SIL Open Font License 1.1) for English display words and numbers; it is tall and
+ *        narrow, so a timer can fill the screen. It has no Japanese glyphs, so Japanese stays in the
+ *        system font with a line height of at least 150% (Digital Agency Design System guideline).
+ * Shape  The M3 Expressive corner scale (androidx.compose.material3 1.4 ShapeTokens).
  */
 
-internal val BrandLight = lightColorScheme(
-    primary = Color(0xFF006D38),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF5FFF9B),
-    onPrimaryContainer = Color(0xFF005229),
-    inversePrimary = Color(0xFF00E47B),
-    secondary = Color(0xFF3E6656),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFC0ECD7),
-    onSecondaryContainer = Color(0xFF264E3F),
-    tertiary = Color(0xFF1E695F),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFA9F0E3),
-    onTertiaryContainer = Color(0xFF005048),
-    background = Color(0xFFF1FDEF),
-    onBackground = Color(0xFF141E16),
-    surface = Color(0xFFF1FDEF),
-    onSurface = Color(0xFF141E16),
-    surfaceVariant = Color(0xFFD8E6D7),
-    onSurfaceVariant = Color(0xFF3D4A3F),
-    surfaceTint = Color(0xFF006D38),
-    inverseSurface = Color(0xFF29332A),
-    inverseOnSurface = Color(0xFFE9F4E7),
-    error = Color(0xFFBA1A1A),
-    onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF93000A),
-    outline = Color(0xFF6D7B6E),
-    outlineVariant = Color(0xFFBCCABB),
-    scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFFF1FDEF),
-    surfaceContainer = Color(0xFFE6F1E4),
-    surfaceContainerHigh = Color(0xFFE0EBDE),
-    surfaceContainerHighest = Color(0xFFDAE6D9),
-    surfaceContainerLow = Color(0xFFEBF7EA),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceDim = Color(0xFFD2DDD0),
-)
+/** The accent and stage colors, for places that need them outside the color scheme roles. */
+internal object Athletic {
+    /** Neon yellow-green: primary actions, work and progress. 17:1 on the canvas. */
+    val Volt = Color(0xFFD4FF3A)
+    val OnVolt = Color(0xFF0A0A0A)
+    /** Rest phases. 12:1 on black. */
+    val Ice = Color(0xFF3DDCFF)
+    /** The last seconds of a countdown. 6.7:1 on black. */
+    val Flare = Color(0xFFFF5A1F)
+    /** The deep red the timer background pulses to in the last seconds: a cue, never a white flash. */
+    val Ember = Color(0xFF4A1405)
+    /** Behind the running timer. */
+    val Black = Color(0xFF000000)
+    /** Behind every other screen: not pure black, so OLED pixels do not smear while scrolling. */
+    val Canvas = Color(0xFF0A0A0A)
+    val Ink = Color(0xFFEDEDED)
+    val InkMuted = Color(0xFFA3A3A3)
+}
 
-internal val BrandDark = darkColorScheme(
-    primary = Color(0xFF00E47B),
-    onPrimary = Color(0xFF00391A),
-    primaryContainer = Color(0xFF005229),
-    onPrimaryContainer = Color(0xFF5FFF9B),
-    inversePrimary = Color(0xFF006D38),
-    secondary = Color(0xFFA4D0BC),
-    onSecondary = Color(0xFF0C3729),
-    secondaryContainer = Color(0xFF264E3F),
-    onSecondaryContainer = Color(0xFFC0ECD7),
-    tertiary = Color(0xFF8DD4C7),
-    onTertiary = Color(0xFF003731),
-    tertiaryContainer = Color(0xFF005048),
-    onTertiaryContainer = Color(0xFFA9F0E3),
-    background = Color(0xFF0C160E),
-    onBackground = Color(0xFFDAE6D9),
-    surface = Color(0xFF0C160E),
-    onSurface = Color(0xFFDAE6D9),
-    surfaceVariant = Color(0xFF3D4A3F),
-    onSurfaceVariant = Color(0xFFBCCABB),
-    surfaceTint = Color(0xFF00E47B),
-    inverseSurface = Color(0xFFDAE6D9),
-    inverseOnSurface = Color(0xFF29332A),
+internal val AthleticColors = darkColorScheme(
+    primary = Athletic.Volt,
+    onPrimary = Athletic.OnVolt,
+    primaryContainer = Color(0xFF2A3400),
+    onPrimaryContainer = Athletic.Volt,
+    inversePrimary = Color(0xFF4D6000),
+    secondary = Athletic.Ice,
+    onSecondary = Color(0xFF00222B),
+    secondaryContainer = Color(0xFF262626),
+    onSecondaryContainer = Athletic.Ink,
+    tertiary = Athletic.Flare,
+    onTertiary = Athletic.OnVolt,
+    tertiaryContainer = Color(0xFF3D1607),
+    onTertiaryContainer = Color(0xFFFFC2A8),
+    background = Athletic.Canvas,
+    onBackground = Athletic.Ink,
+    surface = Athletic.Canvas,
+    onSurface = Athletic.Ink,
+    surfaceVariant = Color(0xFF262626),
+    onSurfaceVariant = Athletic.InkMuted,
+    // Neutral, so tonal elevation lightens a surface instead of tinting it green.
+    surfaceTint = Color(0xFF8A8A8A),
+    inverseSurface = Athletic.Ink,
+    inverseOnSurface = Color(0xFF1A1A1A),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
-    outline = Color(0xFF869487),
-    outlineVariant = Color(0xFF3D4A3F),
+    outline = Color(0xFF6B6B6B),
+    outlineVariant = Color(0xFF2E2E2E),
     scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFF323C33),
-    surfaceContainer = Color(0xFF18221A),
-    surfaceContainerHigh = Color(0xFF222C24),
-    surfaceContainerHighest = Color(0xFF2D372E),
-    surfaceContainerLow = Color(0xFF141E16),
-    surfaceContainerLowest = Color(0xFF071009),
-    surfaceDim = Color(0xFF0C160E),
+    surfaceBright = Color(0xFF2C2C2C),
+    surfaceContainer = Color(0xFF161616),
+    surfaceContainerHigh = Color(0xFF1E1E1E),
+    surfaceContainerHighest = Color(0xFF262626),
+    surfaceContainerLow = Color(0xFF111111),
+    surfaceContainerLowest = Color(0xFF050505),
+    surfaceDim = Athletic.Canvas,
 )
 
 /** The M3 Expressive corner scale. */
@@ -139,12 +134,9 @@ internal val MinTouchTarget = 48.dp
 internal val ButtonHeight = 56.dp
 internal val LargeButtonHeight = 72.dp
 
-/** Replace the wallpaper/brand colors or force light/dark, for previews and screenshot tests. */
-internal val LocalColorSchemeOverride = staticCompositionLocalOf<ColorScheme?> { null }
-internal val LocalDarkThemeOverride = staticCompositionLocalOf<Boolean?> { null }
-
 private val Emphasized = FontWeight.Bold
 
+/** The M3 type scale in the system font, used by every Japanese text and by the M3 components. */
 private val TtTypography = Typography(
     displayLarge = TextStyle(fontSize = 57.sp, lineHeight = 64.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
     displayMedium = TextStyle(fontSize = 45.sp, lineHeight = 52.sp, fontWeight = Emphasized, letterSpacing = 0.sp),
@@ -163,15 +155,24 @@ private val TtTypography = Typography(
     labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp),
 )
 
-/** Tabular digits, so a running timer does not shift sideways as numbers change. */
+private val TightLines = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.Both)
+
+/** Anton display type. Only for English words and numbers: it has no Japanese glyphs. */
+internal object TtType {
+    val Hero = TextStyle(fontFamily = AntonFamily, fontSize = 56.sp, lineHeight = 60.sp, letterSpacing = 0.5.sp, lineHeightStyle = TightLines)
+    val Display = TextStyle(fontFamily = AntonFamily, fontSize = 44.sp, lineHeight = 48.sp, letterSpacing = 0.5.sp, lineHeightStyle = TightLines)
+    val Headline = TextStyle(fontFamily = AntonFamily, fontSize = 30.sp, lineHeight = 34.sp, letterSpacing = 0.5.sp, lineHeightStyle = TightLines)
+    val Title = TextStyle(fontFamily = AntonFamily, fontSize = 20.sp, lineHeight = 24.sp, letterSpacing = 1.sp, lineHeightStyle = TightLines)
+    val Label = TextStyle(fontFamily = AntonFamily, fontSize = 13.sp, lineHeight = 16.sp, letterSpacing = 1.5.sp)
+}
+
+/** Tabular digits in the system font, for small times such as "19:00". */
 internal val TimerDigits = TextStyle(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum", letterSpacing = 0.sp)
 
 @Composable
 fun TsuzuToreTheme(content: @Composable () -> Unit) {
-    val dark = LocalDarkThemeOverride.current ?: isSystemInDarkTheme()
-    val colors = LocalColorSchemeOverride.current ?: platformDynamicColorScheme(dark) ?: if (dark) BrandDark else BrandLight
     MaterialTheme(
-        colorScheme = colors,
+        colorScheme = AthleticColors,
         typography = TtTypography,
         shapes = Shapes(
             extraSmall = TtShapes.ExtraSmall,
@@ -184,7 +185,7 @@ fun TsuzuToreTheme(content: @Composable () -> Unit) {
     )
 }
 
-/** A filled M3 card: tinted container, no border, generous corners. */
+/** A filled M3 card: a step lighter than the canvas, no border, generous corners. */
 @Composable
 internal fun TtCard(
     modifier: Modifier = Modifier,
@@ -197,7 +198,7 @@ internal fun TtCard(
     }
 }
 
-/** Primary action: filled, pill-shaped, M3 Expressive medium height. */
+/** Primary action: Volt fill with black text, pill-shaped. */
 @Composable
 internal fun MainButton(
     text: String,
@@ -213,10 +214,10 @@ internal fun MainButton(
         enabled = enabled,
         shape = TtShapes.Full,
         contentPadding = PaddingValues(horizontal = TtSpace.XLarge, vertical = TtSpace.Medium),
-    ) { ButtonLabel(text, icon) }
+    ) { ButtonLabel(text, icon, if (height >= LargeButtonHeight) 17.sp else 15.sp) }
 }
 
-/** Secondary action: filled tonal, pill-shaped. */
+/** Secondary action: dark gray fill, pill-shaped. */
 @Composable
 internal fun SubButton(
     text: String,
@@ -253,29 +254,47 @@ internal fun OutlineAction(
 }
 
 @Composable
-private fun ButtonLabel(text: String, icon: ImageVector?) {
+private fun ButtonLabel(text: String, icon: ImageVector?, size: TextUnit = 15.sp) {
     if (icon != null) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(TtSpace.Small))
     }
-    Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp))
+    Text(text, style = MaterialTheme.typography.labelLarge.copy(fontSize = size, fontWeight = FontWeight.Bold))
 }
 
-/** Large page title, as in an M3 large top app bar. */
+/** A filter chip whose selected state is unmistakable on black: Volt fill, black label. */
 @Composable
-internal fun PageHeader(title: String, subtitle: String? = null, trailing: (@Composable RowScope.() -> Unit)? = null) {
+internal fun TtChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = label,
+        modifier = modifier.heightIn(min = MinTouchTarget),
+        shape = TtShapes.Full,
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = colors.primary,
+            selectedLabelColor = colors.onPrimary,
+            selectedLeadingIconColor = colors.onPrimary,
+        ),
+    )
+}
+
+/**
+ * Page header: the Japanese title (a heading for screen readers) over a large English display word.
+ * The English word repeats the title for impact, so it is hidden from screen readers.
+ */
+@Composable
+internal fun PageHeader(display: String, title: String, subtitle: String? = null, trailing: (@Composable RowScope.() -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().padding(top = TtSpace.Small), verticalArrangement = Arrangement.spacedBy(TtSpace.XSmall)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { heading() })
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f).semantics { heading() })
+            Text(display, style = TtType.Display, modifier = Modifier.weight(1f).clearAndSetSemantics { })
             trailing?.invoke(this)
         }
         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
-
-/** Kept for existing callers: a page title with an optional description. */
-@Composable
-internal fun PageTitle(title: String, description: String? = null) = PageHeader(title, description)
 
 @Composable
 internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
@@ -317,19 +336,88 @@ internal fun IconBadge(
     }
 }
 
-/** Page container shared by the editor-style pages: back button, title, then content. */
+/** Back button and title for the editor-style pages, with an optional English display word below. */
 @Composable
-internal fun BackTitle(title: String, back: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(back, Modifier.size(MinTouchTarget)) { Icon(Symbols.ArrowBack, contentDescription = "戻る") }
-        Spacer(Modifier.width(TtSpace.XSmall))
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
+internal fun BackTitle(title: String, back: () -> Unit, display: String? = null) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(TtSpace.XSmall)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(back, Modifier.size(MinTouchTarget)) { Icon(Symbols.ArrowBack, contentDescription = "戻る") }
+            Spacer(Modifier.width(TtSpace.XSmall))
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
+        }
+        if (display != null) {
+            Text(display, style = TtType.Display, modifier = Modifier.padding(start = TtSpace.Small).clearAndSetSemantics { })
+        }
+    }
+}
+
+/** A circular progress ring with content in the middle; the arc eases to each new value. */
+@Composable
+internal fun ProgressRing(
+    progress: Float,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+    stroke: Dp = 12.dp,
+    content: @Composable BoxScope.() -> Unit = {},
+) {
+    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    val sweep by animateFloatAsState(progress.coerceIn(0f, 1f), tween(durationMillis = 600), label = "progress-ring")
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val width = stroke.toPx()
+            val topLeft = Offset(width / 2, width / 2)
+            val arc = Size(size.width - width, size.height - width)
+            drawArc(track, 0f, 360f, useCenter = false, topLeft = topLeft, size = arc, style = Stroke(width))
+            if (sweep > 0f) {
+                drawArc(color, -90f, 360f * sweep, useCenter = false, topLeft = topLeft, size = arc, style = Stroke(width, cap = StrokeCap.Round))
+            }
+        }
+        content()
+    }
+}
+
+/** Anton's advance widths in em: every digit but "1" is 0.494, the colon 0.242. Cells are a little wider. */
+private fun cellEm(char: Char): Float = when {
+    char.isDigit() -> 0.5f
+    char == ':' -> 0.26f
+    else -> 0.5f
+}
+
+/** Width of [text] in em when drawn by [StableNumber]; for sizing a number to the space it has. */
+internal fun stableNumberEm(text: String): Float = text.fold(0f) { width, char -> width + cellEm(char) }
+
+/**
+ * A number that keeps its width while it changes, such as a running clock. Anton has no tabular
+ * figures (its "1" is narrower), so every character sits in a fixed-width cell.
+ */
+@Composable
+internal fun StableNumber(text: String, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
+    val density = LocalDensity.current
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        text.forEach { char ->
+            Box(Modifier.width(with(density) { (style.fontSize * cellEm(char)).toDp() }), contentAlignment = Alignment.Center) {
+                Text(
+                    char.toString(),
+                    style = style,
+                    color = color,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.wrapContentWidth(unbounded = true),
+                )
+            }
+        }
     }
 }
 
 internal fun clockText(ms: Long): String {
     val seconds = displaySeconds(ms)
     return "%02d:%02d".format(seconds / 60, seconds % 60)
+}
+
+/** "0:45" style, for the big timer digits: no leading zero, so the digits can be larger. */
+internal fun shortClockText(ms: Long): String {
+    val seconds = displaySeconds(ms)
+    return "%d:%02d".format(seconds / 60, seconds % 60)
 }
 
 internal fun targetText(exercise: Exercise): String =

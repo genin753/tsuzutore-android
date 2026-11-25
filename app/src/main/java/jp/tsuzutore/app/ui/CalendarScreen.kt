@@ -48,7 +48,7 @@ internal fun ColumnScope.CalendarScreen(
     val selectedEvents = eventsByDay[selectedDay].orEmpty()
     val selectedRecords = state.sessions.filter { it.localDate == selectedDay && it.wasPerformed() }.sortedBy { it.startedAt }
 
-    PageHeader("カレンダー", "トレーニングの予定")
+    PageHeader("CALENDAR", "カレンダー", "トレーニングの予定")
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("${month.year}年 ${month.monthValue}月", style = MaterialTheme.typography.titleLarge)
@@ -93,10 +93,10 @@ internal fun ColumnScope.CalendarScreen(
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
-        Surface(Modifier.size(8.dp), shape = TtShapes.Full, color = colors.primary) {}
+        Surface(Modifier.size(8.dp), shape = TtShapes.Full, color = colors.onSurface) {}
         Text("予定", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         Spacer(Modifier.width(TtSpace.XSmall))
-        Icon(Symbols.Check, contentDescription = null, tint = colors.tertiary, modifier = Modifier.size(14.dp))
+        Icon(Symbols.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(14.dp))
         Text("実施済み", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         Spacer(Modifier.width(TtSpace.XSmall))
         Surface(Modifier.size(14.dp), shape = TtShapes.Full, color = colors.secondaryContainer) {}
@@ -165,7 +165,7 @@ internal fun ColumnScope.CalendarScreen(
     if (selectedRecords.isNotEmpty()) {
         SectionTitle("この日の実施記録")
         selectedRecords.forEach { session ->
-            TtCard(Modifier.fillMaxWidth(), containerColor = colors.tertiaryContainer) {
+            TtCard(Modifier.fillMaxWidth(), containerColor = colors.primaryContainer) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(TtSpace.Medium)) {
                     Icon(Symbols.CheckCircle, contentDescription = null)
                     Column {
@@ -262,8 +262,8 @@ private fun RowScope.CalendarDay(
             }
         }
         Row(Modifier.height(12.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (eventCount > 0) Surface(Modifier.size(6.dp), shape = TtShapes.Full, color = colors.primary) {}
-            if (performed) Icon(Symbols.Check, contentDescription = null, tint = colors.tertiary, modifier = Modifier.size(12.dp))
+            if (eventCount > 0) Surface(Modifier.size(6.dp), shape = TtShapes.Full, color = colors.onSurface) {}
+            if (performed) Icon(Symbols.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(12.dp))
         }
     }
 }

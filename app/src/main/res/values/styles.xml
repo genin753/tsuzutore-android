@@ -1,10 +1,10 @@
 <resources>
-    <!-- Launch window only; Compose draws the Material 3 theme (wallpaper or brand colors) on top. -->
-    <style name="Theme.TsuzuTore" parent="android:style/Theme.Material.Light.NoActionBar">
+    <!-- Launch window only; Compose draws the always-dark "Dark Athletic" theme on top of it. -->
+    <style name="Theme.TsuzuTore" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">#006D38</item>
-        <item name="android:windowBackground">#F1FDEF</item>
+        <item name="android:colorAccent">#D4FF3A</item>
+        <item name="android:windowBackground">#000000</item>
     </style>
 </resources>

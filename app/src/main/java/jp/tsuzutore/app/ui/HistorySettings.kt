@@ -50,10 +50,10 @@ internal fun HistoryScreen(state: AppUiState, actions: AppUiActions) {
             .toList()
     }
     val hasWorkouts = remember(state.sessions) { state.sessions.any { it.plan.kind == PlanKind.WORKOUT && it.hasPerformed() } }
-    PageHeader("記録", "できた分を残して、次のトレーニングの目安に。")
+    PageHeader("HISTORY", "記録", "できた分を残して、次のトレーニングの目安に。")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
         listOf("すべて", "筋トレ", "自由タイマー").forEachIndexed { index, label ->
-            FilterChip(
+            TtChip(
                 filter == index,
                 { filter = index; visibleDays = HISTORY_PAGE_DAYS },
                 { Text(label) },
@@ -306,14 +306,14 @@ internal fun SettingsScreen(state: AppUiState, actions: AppUiActions) {
     val requestIfNeeded: (Boolean) -> Unit = { enabled -> if (enabled && !allowed) actions.requestNotificationPermission() }
     val firstDate = form.firstWorkoutDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
-    PageHeader("設定", "自分に合った、続けやすい形に。")
+    PageHeader("SETTINGS", "設定", "自分に合った、続けやすい形に。")
     HelpText("変更したら「設定を保存」を押してください。")
     SettingsGroup("習慣と予定", Symbols.Event) {
         Text("トレーニングする曜日", style = MaterialTheme.typography.titleSmall)
         listOf(listOf(1, 2, 3, 4), listOf(5, 6, 7)).forEach { dayRow ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(TtSpace.Small)) {
                 dayRow.forEach { day ->
-                    FilterChip(
+                    TtChip(
                         day in form.plannedDays,
                         { form = form.copy(plannedDays = if (day in form.plannedDays) form.plannedDays - day else form.plannedDays + day) },
                         { Text(weekdayLabels[day - 1]) },

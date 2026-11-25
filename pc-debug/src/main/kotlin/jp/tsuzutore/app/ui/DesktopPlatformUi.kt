@@ -1,12 +1,19 @@
 package jp.tsuzutore.app.ui
 
-import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.platform.Font
 import java.util.UUID
 
-/** The desktop has no wallpaper colors; the brand scheme is used. */
-@Composable
-internal fun platformDynamicColorScheme(dark: Boolean): ColorScheme? = null
+/** Anton, read from the Android app's res/font folder, which the PC build adds to its resources. */
+internal val AntonFamily: FontFamily = FontFamily(
+    Font(
+        "Anton-Regular",
+        checkNotNull(DesktopBackDispatcher::class.java.getResourceAsStream("/anton_regular.ttf")) {
+            "anton_regular.ttf is missing from the PC build's resources"
+        }.use { it.readBytes() },
+    ),
+)
 
 internal object DesktopBackDispatcher {
     private val callbacks = linkedMapOf<String, () -> Unit>()
