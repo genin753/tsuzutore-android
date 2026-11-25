@@ -36,7 +36,9 @@
 
 ### アプリを入れる
 
-Android Studio（JDK 17、Android SDK 36）でこのリポジトリを開き、`app`を実行します。
+スマホに直接入れる場合は、スマホのブラウザで[最新のリリース](https://github.com/genin753/tsuzutore-android/releases/latest)を開き、「Assets」にあるAPKをダウンロードして開きます。「この提供元のアプリを許可」を求められたらONにして、インストールします。
+
+ソースから入れる場合は、Android Studio（JDK 17、Android SDK 36）でこのリポジトリを開き、`app`を実行します。
 
 コマンドで入れる場合は、スマホの開発者向けオプションで「USBデバッグ」をONにしてPCにつなぎ、リポジトリ直下で次を実行します（macOS・Linuxでは`./gradlew installRelease`）。環境変数`ANDROID_HOME`には、Android SDKの場所を設定しておきます。
 
@@ -45,6 +47,7 @@ Android Studio（JDK 17、Android SDK 36）でこのリポジトリを開き、`
 ```
 
 初回のビルドでは、ライブラリの取得にネット接続が必要です。署名用の鍵は、初回のビルドで自動的に作られます。
+リリースのAPKと自分でビルドしたAPKは署名が違うため、互いに上書きはできません。
 
 ### トレーニングする
 
